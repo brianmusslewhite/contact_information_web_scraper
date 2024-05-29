@@ -17,10 +17,6 @@ def get_google_search_results(query, num_pages=1):
     for page in range(num_pages):
         url = f'https://www.google.com/search?q={query}&start={page*10}'
         response = requests.get(url, headers=HEADER)
-        
-        # Print the raw HTML content for debugging
-        # print(f"Response content for page {page}:\n{response.text[:1000]}...\n")
-        
         soup = BeautifulSoup(response.text, 'html.parser')
         
         # Find all 'a' tags
