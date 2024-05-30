@@ -6,7 +6,7 @@ import random
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -29,25 +29,31 @@ def get_google_search_results(query, num_pages):
         logging.info(f"Searching page {page+1}/{num_pages} of search {query}")
         url = f'https://www.google.com/search?q={query}&start={page*10}'
         response = requests.get(url, headers=random.choice(HEADERS))
-        soup = BeautifulSoup(response.text, 'html.parser')
 
-        links = soup.find_all('a', href=True)
-        for link in links:
-            href = link['href']
-            if 'U&url=' in href:
-                try:
-                    actual_url = href.split('U&url=')[1].split('&')[0]
-                    actual_url = requests.utils.unquote(actual_url)
-                    if actual_url.startswith('http'):
-                        urls.append(actual_url)
-                    else:
-                        logging.info(f"Skipping non-HTTP URL: {actual_url}")
-                except IndexError:
-                    logging.warning(f"Skipping malformed URL: {href}")
+        get_links_from_html(response)
+
         if num_pages > 1 and page !=num_pages-1:
             sleep_time = 2
             logging.info(f"Sleeping for {sleep_time}s")
             time.sleep(sleep_time)
+    return urls
+
+def get_links_from_html(response):
+    soup = BeautifulSoup(response.text, 'html.parser')
+    links = soup.find_all('a', href=True)
+    urls = []  # Initialize list to store actual URLs
+
+    for link in links:
+        href = link['href']
+        parsed_href = urlparse(href)
+        query_params = parse_qs(parsed_href.query)
+        actual_url = query_params.get('url', [None])[0]
+
+        if actual_url and actual_url.startswith('http'):
+            urls.append(actual_url)
+        else:
+            logging.info(f"Skipping non-HTTP or missing URL: {href}")
+
     return urls
 
 
@@ -176,15 +182,15 @@ if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     search_queries = [
         "Texas saltwater fishing guides",
-        "Top saltwater fishing charters in Texas",
-        "Best Texas guides for saltwater fishing",
-        "Licensed saltwater fishing guides in Texas Gulf Coast",
-        "Professional saltwater fishing charters Texas",
-        "Texas coast fishing guide services",
-        "Affordable saltwater fishing guides in Texas",
-        "Texas saltwater fishing trip reviews",
-        "Certified saltwater fishing guides near Corpus Christi Texas",
-        "Texas saltwater fishing guide directories"
+        # "Top saltwater fishing charters in Texas",
+        # "Best Texas guides for saltwater fishing",
+        # "Licensed saltwater fishing guides in Texas Gulf Coast",
+        # "Professional saltwater fishing charters Texas",
+        # "Texas coast fishing guide services",
+        # "Affordable saltwater fishing guides in Texas",
+        # "Texas saltwater fishing trip reviews",
+        # "Certified saltwater fishing guides near Corpus Christi Texas",
+        # "Texas saltwater fishing guide directories"
     ]
     logging.basicConfig(filename=f'{search_queries[0]}_scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
     logging.info(f"Starting with search queries: {search_queries}")
@@ -193,7 +199,7 @@ if __name__ == "__main__":
 
     for query in search_queries:
         logging.info(f"Starting Google search for: {query}")
-        urls = get_google_search_results(query, num_pages=50)
+        urls = get_google_search_results(query, num_pages=2)
         if urls:
             logging.info(f"Got urls for: {query}")
         else:
