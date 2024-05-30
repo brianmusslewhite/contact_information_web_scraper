@@ -1,4 +1,5 @@
 import csv
+import logging
 import re
 import time
 import random
@@ -20,9 +21,11 @@ HEADERS = [
     {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
 ]
 
+
 def get_google_search_results(query, num_pages):
     urls = []
     for page in range(num_pages):
+        logging.info(f"Searching page {page+1}/{num_pages} of search {query}")
         url = f'https://www.google.com/search?q={query}&start={page*10}'
         response = requests.get(url, headers=random.choice(HEADERS))
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -37,12 +40,15 @@ def get_google_search_results(query, num_pages):
                     if actual_url.startswith('http'):
                         urls.append(actual_url)
                     else:
-                        print(f"Skipping non-HTTP URL: {actual_url}")
+                        logging.info(f"Skipping non-HTTP URL: {actual_url}")
                 except IndexError:
-                    print(f"Skipping malformed URL: {href}")
-        
-        time.sleep(2)
+                    logging.warning(f"Skipping malformed URL: {href}")
+        if num_pages > 1 and page !=num_pages-1:
+            sleep_time = 2
+            logging.info(f"Sleeping for {sleep_time}s")
+            time.sleep(sleep_time)
     return urls
+
 
 def set_up_driver():
     options = webdriver.ChromeOptions()
@@ -55,15 +61,18 @@ def set_up_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
+
 def fetch_html(driver, url):
     driver.get(url)
     try:
         WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         html_content = driver.page_source
+        logging.info(f"Successfully fetched HTML for {url}")
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"Error fetching {url}: {e}")
         html_content = ""
     return html_content
+
 
 def find_contact_details(text):
     phones = re.findall(r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b', text, re.IGNORECASE)
@@ -140,6 +149,8 @@ def remove_exact_duplicates(contacts):
 
 if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    logging.basicConfig(filename=f'scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+
     search_queries = [
         "Texas saltwater fishing guides",
         "saltwater fishing charters in Texas",
@@ -148,27 +159,30 @@ if __name__ == "__main__":
         "licensed saltwater fishing guides in Texas"
     ]
 
+    logging.info(f"Starting search for queries: {search_queries}")
+
     driver = set_up_driver()
     all_contacts = []
 
-    for query in search_queries:
-        urls = get_google_search_results(query, num_pages=20)
-        print(f"Got urls for: {query}")
-        # urls = ["https://www.texasfishingguides.org/saltwater_fishing_guides_aransas_pass.html"]
+    try:
+        for query in search_queries:
+            logging.info(f"Starting Google search for: {query}")
+            urls = get_google_search_results(query, num_pages=10)
+            logging.info(f"Got urls for: {query}")
+            # urls = ["https://www.texasfishingguides.org/saltwater_fishing_guides_aransas_pass.html"]
 
-        try:
             for url in urls:
-                print(f"Searching: {url}")
+                logging.info(f"Searching: {url}")
                 html_content = fetch_html(driver, url)
                 soup = BeautifulSoup(html_content, 'html.parser')
                 contacts = proximity_based_extraction(soup, url)
                 all_contacts.extend(contacts)
-        except Exception as e:
-            print(e)
+    except Exception as e:
+        logging.error(f"An error occurred during processing: {e}")
             
     driver.quit()
     all_contacts = remove_exact_duplicates(all_contacts)
 
     filename = f"{current_time}_{query.replace(' ', '_')}.csv"
     save_to_csv(all_contacts, filename)
-    print(all_contacts)
+    logging.info(f"Data saved to {filename}. Total unique contacts: {len(all_contacts)}")
