@@ -4,6 +4,7 @@ import re
 import time
 import random
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib.parse import urlparse
 from selenium import webdriver
@@ -52,25 +53,37 @@ def get_google_search_results(query, num_pages):
 
 def set_up_driver():
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')  # Run in headless mode
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('blink-settings=imagesEnabled=false')  # Disables images
-    options.add_argument('--disable-gpu')  # Disables GPU hardware acceleration
-    options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})  # Another way to block images
+    options.add_argument('blink-settings=imagesEnabled=false')
+    options.add_argument('--disable-gpu')
+    options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     driver = webdriver.Chrome(options=options)
     return driver
 
 
-def fetch_html(driver, url):
-    driver.get(url)
+def load_page(driver, url, event):
     try:
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        driver.get(url)
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        event.set()
+    except Exception as e:
+        logging.error(f"Error while loading {url}: {e}")
+
+
+def fetch_html(url, timeout=10):
+    driver = set_up_driver()
+    try:
+        driver.get(url)
+        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         html_content = driver.page_source
         logging.info(f"Successfully fetched HTML for {url}")
     except Exception as e:
-        logging.error(f"Error fetching {url}: {e}")
+        logging.error(f"Error fetching {url}: {str(e)}")
         html_content = ""
+    finally:
+        driver.quit()
     return html_content
 
 
@@ -138,51 +151,63 @@ def remove_exact_duplicates(contacts):
     unique_contacts = []
 
     for contact in contacts:
-        # Convert dictionary to a frozenset of its items
         contact_frozenset = frozenset(contact.items())
         if contact_frozenset not in seen:
             seen.add(contact_frozenset)
             unique_contacts.append(contact)
-
     return unique_contacts
+
+
+def process_url(url):
+    try:
+        logging.info(f"Processing URL: {url}")
+        html_content = fetch_html(url)
+        if html_content:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            contacts = proximity_based_extraction(soup, url)
+            return contacts
+        return []
+    except Exception as e:
+        logging.error(f"Error processing URL {url}: {e}")
+        return []
 
 
 if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    logging.basicConfig(filename=f'scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-
     search_queries = [
         "Texas saltwater fishing guides",
-        "saltwater fishing charters in Texas",
-        "Texas coastal fishing guides",
-        "best saltwater fishing guides Texas",
-        "licensed saltwater fishing guides in Texas"
+        "Top saltwater fishing charters in Texas",
+        "Best Texas guides for saltwater fishing",
+        "Licensed saltwater fishing guides in Texas Gulf Coast",
+        "Professional saltwater fishing charters Texas",
+        "Texas coast fishing guide services",
+        "Affordable saltwater fishing guides in Texas",
+        "Texas saltwater fishing trip reviews",
+        "Certified saltwater fishing guides near Corpus Christi Texas",
+        "Texas saltwater fishing guide directories"
     ]
-
-    logging.info(f"Starting search for queries: {search_queries}")
-
-    driver = set_up_driver()
+    logging.basicConfig(filename=f'{search_queries[0]}_scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+    logging.info(f"Starting with search queries: {search_queries}")
+    filename = f"{current_time}_{search_queries[0].replace(' ', '_')}.csv"
     all_contacts = []
 
-    try:
-        for query in search_queries:
-            logging.info(f"Starting Google search for: {query}")
-            urls = get_google_search_results(query, num_pages=10)
+    for query in search_queries:
+        logging.info(f"Starting Google search for: {query}")
+        urls = get_google_search_results(query, num_pages=50)
+        if urls:
             logging.info(f"Got urls for: {query}")
-            # urls = ["https://www.texasfishingguides.org/saltwater_fishing_guides_aransas_pass.html"]
+        else:
+            logging.info(f"URLs are empty for: {query}")
+            continue
 
-            for url in urls:
-                logging.info(f"Searching: {url}")
-                html_content = fetch_html(driver, url)
-                soup = BeautifulSoup(html_content, 'html.parser')
-                contacts = proximity_based_extraction(soup, url)
-                all_contacts.extend(contacts)
-    except Exception as e:
-        logging.error(f"An error occurred during processing: {e}")
+        with ThreadPoolExecutor(max_workers=min(50,len(urls))) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in urls}
+            for future in as_completed(future_to_url):
+                contacts = future.result()
+                if contacts:
+                    all_contacts.extend(contacts)
+                    logging.info(f"Completed processing: {future_to_url[future]}")
             
-    driver.quit()
     all_contacts = remove_exact_duplicates(all_contacts)
-
-    filename = f"{current_time}_{query.replace(' ', '_')}.csv"
     save_to_csv(all_contacts, filename)
     logging.info(f"Data saved to {filename}. Total unique contacts: {len(all_contacts)}")
