@@ -1,9 +1,6 @@
 import csv
 import logging
 import re
-import time
-import random
-import requests
 import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -15,26 +12,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 
-HEADERS = [
-    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'},
-    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36'},
-    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'},
-    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36'},
-    {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
-]
-
-def is_allowed(url, user_agent='Mozilla/5.0'):
-    parser = urllib.robotparser.RobotFileParser()
-    parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
-    parser.read()
-    return parser.can_fetch(user_agent, url)
-
 def get_gigablast_search_results(query):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
 
     search_results = fetch_html(url)
     soup = BeautifulSoup(search_results, 'html.parser')
-    # print(soup)
     links = soup.find_all('a', attrs={'data-target': True})
     urls = [link['data-target'] for link in links if link['data-target'].startswith('http') and "anon.toorgle.com" not in link['data-target']]
 
@@ -53,6 +35,13 @@ def set_up_driver():
     return driver
 
 
+def is_allowed(url, user_agent='Mozilla/5.0'):
+    parser = urllib.robotparser.RobotFileParser()
+    parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
+    parser.read()
+    return parser.can_fetch(user_agent, url)
+
+
 def fetch_html(url, timeout=10):
     if not is_allowed(url):
         logging.warning(f"Access denied by robots.txt for URL: {url}")
@@ -69,7 +58,6 @@ def fetch_html(url, timeout=10):
             WebDriverWait(driver, timeout).until(
                 lambda d: d.execute_script('return jQuery.active == 0')
             )
-        
         html_content = driver.page_source
         logging.info(f"Successfully fetched HTML for {url}")
     except Exception as e:
@@ -89,50 +77,53 @@ def find_contact_details(text):
 def proximity_based_extraction(soup, url):
     contacts = []
     seen_data = set()  # Track all seen combinations
-
     base_url = urlparse(url).netloc
-    potential_blocks = soup.find_all(['div', 'p', 'footer', 'section'])
+
+    # Regular expressions for different types of data
+    phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
+    email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    address_regex = r'\d{1,5} [\w\s]{1,31}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct)\b'
+    website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
+    name_regex = r"(Mr\.|Mrs\.|Ms\.|Dr\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+
+    potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
 
     for block in potential_blocks:
         text = ' '.join(block.stripped_strings)
-        # Extract phone numbers from text
-        phones = set(re.findall(r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b', text, re.IGNORECASE))
-        
-        # Extract emails from text and href attributes of <a> tags
-        emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text, re.IGNORECASE))
-        for a in block.find_all('a', href=True):
-            mailto = a['href']
-            if 'mailto:' in mailto:
-                email = mailto.split('mailto:')[1].split('?')[0]  # Split on 'mailto:' and '?' for parameters
-                emails.add(email)
-        
-        # Determine pairing logic
-        if len(phones) == 1 and len(emails) == 1:
-            phone = next(iter(phones))
-            email = next(iter(emails))
-            contact_id = (phone, email)
+
+        # Extract data from text using regular expressions
+        phones = tuple(re.findall(phone_regex, text, re.IGNORECASE))
+        emails = tuple(re.findall(email_regex, text, re.IGNORECASE))
+        addresses = tuple(re.findall(address_regex, text, re.IGNORECASE))
+        websites = tuple(re.findall(website_regex, text, re.IGNORECASE))
+        names = tuple(re.findall(name_regex, text))
+
+        # Collect all data found in a block if any data is present
+        if phones or emails or addresses:
+            contact_details = {
+                'phone': phones,
+                'email': emails,
+                'address': addresses,
+                'additional_websites': websites,
+                'name': names,
+                'source': url,
+            }
+
+            # Create a unique identifier for each contact block to avoid duplicates
+            contact_id = frozenset(contact_details.items())
             if contact_id not in seen_data:
                 seen_data.add(contact_id)
-                contacts.append({'website': base_url, 'email': email, 'phone': phone})
-        else:
-            # If multiple or no direct pair, add them independently
-            for phone in phones:
-                contact_id = (phone, '')
-                if contact_id not in seen_data:
-                    seen_data.add(contact_id)
-                    contacts.append({'website': base_url, 'email': '', 'phone': phone})
-            for email in emails:
-                contact_id = ('', email)
-                if contact_id not in seen_data:
-                    seen_data.add(contact_id)
-                    contacts.append({'website': base_url, 'email': email, 'phone': ''})
+                contacts.append(contact_details)
 
     return contacts
 
 
 def save_to_csv(contacts, filename):
+    if not contacts:
+        return
+
     with open(filename, 'w', newline='') as file:
-        fieldnames = ['website', 'email', 'phone']
+        fieldnames = list(contacts[0].keys())
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for contact in contacts:
@@ -166,7 +157,9 @@ def process_url(url):
 
 
 if __name__ == "__main__":
-    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    current_datetime = datetime.now()
+    current_formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+    current_date = current_datetime.strftime("%Y_%m_%d")
     search_queries = [
         "Texas saltwater fishing guides",
         "Top saltwater fishing charters in Texas",
@@ -179,9 +172,9 @@ if __name__ == "__main__":
         "Certified saltwater fishing guides near Corpus Christi Texas",
         "Texas saltwater fishing guide directories"
     ]
-    logging.basicConfig(filename=f'{search_queries[0]}_scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+    logging.basicConfig(filename=f'{search_queries[0]}_{current_date}.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
     logging.info(f"Starting with search queries: {search_queries}")
-    filename = f"{current_time}_{search_queries[0].replace(' ', '_')}.csv"
+    filename = f"{current_formatted_datetime}_{search_queries[0].replace(' ', '_')}.csv"
     all_contacts = []
 
     for query in search_queries:
