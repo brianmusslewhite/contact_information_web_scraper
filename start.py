@@ -4,9 +4,10 @@ import re
 import time
 import random
 import requests
+import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -22,39 +23,22 @@ HEADERS = [
     {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
 ]
 
+def is_allowed(url, user_agent='Mozilla/5.0'):
+    parser = urllib.robotparser.RobotFileParser()
+    parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
+    parser.read()
+    return parser.can_fetch(user_agent, url)
 
-def get_google_search_results(query, num_pages):
-    urls = []
-    for page in range(num_pages):
-        logging.info(f"Searching page {page+1}/{num_pages} of search {query}")
-        url = f'https://www.google.com/search?q={query}&start={page*10}'
-        response = requests.get(url, headers=random.choice(HEADERS))
+def get_gigablast_search_results(query):
+    url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
 
-        get_links_from_html(response)
+    search_results = fetch_html(url)
+    soup = BeautifulSoup(search_results, 'html.parser')
+    # print(soup)
+    links = soup.find_all('a', attrs={'data-target': True})
+    urls = [link['data-target'] for link in links if link['data-target'].startswith('http') and "anon.toorgle.com" not in link['data-target']]
 
-        if num_pages > 1 and page !=num_pages-1:
-            sleep_time = 2
-            logging.info(f"Sleeping for {sleep_time}s")
-            time.sleep(sleep_time)
-    return urls
-
-def get_links_from_html(response):
-    soup = BeautifulSoup(response.text, 'html.parser')
-    links = soup.find_all('a', href=True)
-    urls = []  # Initialize list to store actual URLs
-
-    for link in links:
-        href = link['href']
-        parsed_href = urlparse(href)
-        query_params = parse_qs(parsed_href.query)
-        actual_url = query_params.get('url', [None])[0]
-
-        if actual_url and actual_url.startswith('http'):
-            urls.append(actual_url)
-        else:
-            logging.info(f"Skipping non-HTTP or missing URL: {href}")
-
-    return urls
+    return list(set(urls))
 
 
 def set_up_driver():
@@ -62,27 +46,30 @@ def set_up_driver():
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('blink-settings=imagesEnabled=false')
     options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
     options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     driver = webdriver.Chrome(options=options)
     return driver
 
 
-def load_page(driver, url, event):
-    try:
-        driver.get(url)
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        event.set()
-    except Exception as e:
-        logging.error(f"Error while loading {url}: {e}")
-
-
 def fetch_html(url, timeout=10):
+    if not is_allowed(url):
+        logging.warning(f"Access denied by robots.txt for URL: {url}")
+        return []
+    
     driver = set_up_driver()
     try:
         driver.get(url)
         WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        
+        # Check if jQuery is available on the page and wait for AJAX if so
+        jquery_loaded = driver.execute_script("return typeof jQuery != 'undefined'")
+        if jquery_loaded:
+            WebDriverWait(driver, timeout).until(
+                lambda d: d.execute_script('return jQuery.active == 0')
+            )
+        
         html_content = driver.page_source
         logging.info(f"Successfully fetched HTML for {url}")
     except Exception as e:
@@ -182,15 +169,15 @@ if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     search_queries = [
         "Texas saltwater fishing guides",
-        # "Top saltwater fishing charters in Texas",
-        # "Best Texas guides for saltwater fishing",
-        # "Licensed saltwater fishing guides in Texas Gulf Coast",
-        # "Professional saltwater fishing charters Texas",
-        # "Texas coast fishing guide services",
-        # "Affordable saltwater fishing guides in Texas",
-        # "Texas saltwater fishing trip reviews",
-        # "Certified saltwater fishing guides near Corpus Christi Texas",
-        # "Texas saltwater fishing guide directories"
+        "Top saltwater fishing charters in Texas",
+        "Best Texas guides for saltwater fishing",
+        "Licensed saltwater fishing guides in Texas Gulf Coast",
+        "Professional saltwater fishing charters Texas",
+        "Texas coast fishing guide services",
+        "Affordable saltwater fishing guides in Texas",
+        "Texas saltwater fishing trip reviews",
+        "Certified saltwater fishing guides near Corpus Christi Texas",
+        "Texas saltwater fishing guide directories"
     ]
     logging.basicConfig(filename=f'{search_queries[0]}_scraping_logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
     logging.info(f"Starting with search queries: {search_queries}")
@@ -198,8 +185,8 @@ if __name__ == "__main__":
     all_contacts = []
 
     for query in search_queries:
-        logging.info(f"Starting Google search for: {query}")
-        urls = get_google_search_results(query, num_pages=2)
+        logging.info(f"Starting web search for: {query}")
+        urls = get_gigablast_search_results(query)
         if urls:
             logging.info(f"Got urls for: {query}")
         else:
