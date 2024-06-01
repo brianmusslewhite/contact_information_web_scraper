@@ -133,9 +133,9 @@ def set_up_driver():
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(45)
-    driver.set_script_timeout(45)
-    driver.implicitly_wait(45) 
+    driver.set_page_load_timeout(60)
+    driver.set_script_timeout(60)
+    driver.implicitly_wait(60) 
     return driver
 
 
@@ -165,7 +165,7 @@ def fetch_html(url, timeout=10):
         html_content = driver.page_source
         logging.debug(f"Successfully fetched HTML for {url}")
     except Exception as e:
-        logging.error(f"Error fetching {url}: {str(e)}")
+        logging.warning(f"Error fetching {url}: {str(e)}")
         html_content = ""
     finally:
         driver.quit()
@@ -229,7 +229,7 @@ def process_url(url):
             return contacts
         return []
     except Exception as e:
-        logging.error(f"Error processing URL {url}: {e}")
+        logging.warning(f"Error processing URL {url}: {e}")
         return []
 
 
@@ -271,6 +271,7 @@ def standardize_email(email):
 
 def clean_contact_information(all_contacts):
     contact_info = pd.DataFrame(all_contacts)
+    logging.info(f"Cleaning contact information. Length before cleaning: {len(contact_info)}")
     
     # clean phone
     contact_info['phone1'] = contact_info['phone1'].apply(standardize_phone)
@@ -289,6 +290,7 @@ def clean_contact_information(all_contacts):
     # remove partial duplicates
     # to-do
 
+    logging.info(f"Cleaning complete. Length after cleaning: {len(contact_info)}")
     return contact_info
 
 
@@ -324,28 +326,59 @@ if __name__ == "__main__":
         "Texas saltwater fishing guides",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
+        "Saltwater fishing guides in Texas",
+        "Texas saltwater fishing charters contact details",
+        "Fishing guide services Texas Gulf Coast",
+        "Texas coast fishing guides contact info",
+        "Galveston saltwater fishing guides contact",
+        "Corpus Christi saltwater fishing charters contact",
+        "Port Aransas fishing guides contact information",
+        "South Padre Island fishing guides contact details",
+        "Rockport Texas saltwater fishing guides contact info",
+        "Texas saltwater fishing guides Yelp",
+        "Texas fishing charters TripAdvisor",
+        "Saltwater fishing guides Texas Google Maps",
+        "Texas fishing guides directory",
+        "Best saltwater fishing guides in Texas",
+        "Texas Professional Fishing Guides Association",
+        "Texas fishing guides association members contact",
+        "Texas Parks and Wildlife fishing guides list",
+        "Texas fishing guides yellow pages",
+        "Texas saltwater fishing guides Facebook",
+        "Texas fishing guides Instagram",
+        "Fishing forums Texas saltwater guides",
+        "Texas fishing groups contact information",
+        '"Texas saltwater fishing guides" site:texas.gov',
+        '"Texas saltwater fishing guides" site:facebook.com',
+        '"Texas saltwater fishing guides" site:tripadvisor.com',
+        '"Texas saltwater fishing guides directory" site:texas.gov',
+        '"Galveston fishing guides contact" site:tripadvisor.com'
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
+    all_urls = []
     all_contacts = []
     
     logging.info(f"Starting with queries: {search_queries}")
-    for query in search_queries:
-        logging.info(f"Starting query: {query}")
-        urls = get_gigablast_search_results(query, clicks=20)
-        if urls:
-            logging.info(f"Got {len(urls)} urls for: {query}")
-        else:
-            logging.info(f"URLs are empty for: {query}")
-            continue
-        
-        with ThreadPoolExecutor(max_workers=int(os.cpu_count()*1.7)) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in urls}
-            for future in as_completed(future_to_url):
-                contacts = future.result()
-                if contacts:
-                    all_contacts.extend(contacts)
-                    logging.debug(f"Completed processing: {future_to_url[future]}")
+    
+    # Run the search queries in parallel
+    with ThreadPoolExecutor() as executor:
+        future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=20): query for query in search_queries}
+        for future in as_completed(future_to_query):
+            urls = future.result()
+            if urls:
+                all_urls.extend(urls)
+    
+    logging.info(f"Collected {len(all_urls)} urls from all queries. Starting to process.")
+
+    # Process the collected URLs in parallel
+    with ThreadPoolExecutor() as executor:
+        future_to_url = {executor.submit(process_url, url): url for url in all_urls}
+        for future in as_completed(future_to_url):
+            contacts = future.result()
+            if contacts:
+                all_contacts.extend(contacts)
+                logging.debug(f"Completed processing: {future_to_url[future]}")
     
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
