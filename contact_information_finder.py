@@ -30,49 +30,80 @@ def get_gigablast_search_results(query):
 
 def set_up_driver():
     user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
-        "Mozilla/5.0 (iPad; CPU OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
         "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0",
-        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; AS; rv:11.0) like Gecko",
         "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Mobile Safari/537.36",
-        "Mozilla/5.0 (Linux; Android 10; SM-G985F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
     ]
-
     user_agent = random.choice(user_agents)
-    path_to_ublock_origin = '1.58.0_0.crx'
+    path_to_ublock_origin = 'ublockorigin.crx'
+    path_to_https_everywhere = 'httpseverywhere.crx'
 
     logging.debug("Setting up Selenium WebDriver")
     options = webdriver.ChromeOptions()
     options.add_extension(path_to_ublock_origin)
+    options.add_extension(path_to_https_everywhere)
     options.add_argument(f'user-agent={user_agent}')
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument("--disable-plugins-discovery")
-    options.add_argument("--disable-popup-blocking")
     options.add_argument('--incognito')
+    options.add_argument('--disable-plugins-discovery')
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--disable-third-party-cookies")
+    options.add_argument("--disable-hyperlink-auditing")
+    options.add_argument("--disable-credit-card-autofill")
+    options.add_argument("--disable-file-system")
+    options.add_argument("--disable-features=OutOfBlinkCors,LegacySymantecCert")
+    options.add_argument("--disable-smooth-scrolling")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-accelerated-2d-canvas")
+    options.add_argument("--disable-accelerated-video-decode")
+    options.add_argument("--enable-features=NetworkService")
+    options.add_argument("--feature-policy=geolocation 'none'")
+    options.add_argument('--headless')
+    options.add_argument("--site-per-process")
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
+    options.add_argument("--enable-low-res-tiling")
+    options.add_argument("--disable-webgl")
+    options.add_argument('--disable-webrtc')
+    options.add_argument("--disable-print-preview")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument('--enable-strict-powerful-feature-restrictions')
+    options.add_argument("--lang=en-US")
 
     prefs = {
+        "safebrowsing.enabled": True,
+        "safebrowsing.disable_download_protection": False,
         "download.prompt_for_download": False,
         "download.default_directory": "/dev/null",
         "download.directory_upgrade": True,
         "plugins.always_open_pdf_externally": True,
+        "profile.default_content_setting_values.automatic_downloads": 2,
+        "profile.password_manager_enabled": False,
+        "credentials_enable_service": False,
+        "autofill.enabled": False,
+        "profile.autofill.disable": True,
+        "profile.block_third_party_cookies": True,
+        "local_storage_enabled": False,
+        "appcache_enabled": False,
         "profile.default_content_settings.popups": 0,
         "profile.managed_default_content_settings.images": 2,
         "profile.default_content_settings.stylesheets": 2,
         "profile.default_content_settings.fonts": 2,
+        "profile.default_content_settings.encrypted_media": 2,
+        "profile.default_content_setting_values.mixed_content": 2,
         "profile.default_content_setting_values.geolocation": 2,
         "profile.default_content_setting_values.media_stream_camera": 2,
         "profile.default_content_setting_values.media_stream_mic": 2,
+        "profile.managed_default_content_settings.media_stream": 2,
+        "profile.default_content_setting_values.notifications": 2,
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(30)
+    driver.set_script_timeout(30)
+    driver.implicitly_wait(30) 
     return driver
 
 
