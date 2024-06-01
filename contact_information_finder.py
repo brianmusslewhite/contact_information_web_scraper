@@ -219,6 +219,8 @@ def setup_paths_and_logging(search_queries):
     console_handler.setFormatter(logging.Formatter(log_format))
     logging.root.addHandler(console_handler)
     logging.info("Logging started")
+    selenium_logger = logging.getLogger('selenium')
+    selenium_logger.setLevel(logging.WARNING)
 
     csv_filename = f"{current_formatted_datetime}_{search_queries[0].replace(' ', '-')}.csv"
     csv_filepath = os.path.join(results_path, csv_filename)
