@@ -37,13 +37,15 @@ def set_up_driver():
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
     ]
     user_agent = random.choice(user_agents)
-    path_to_ublock_origin = 'ublockorigin.crx'
-    path_to_https_everywhere = 'httpseverywhere.crx'
+    path_to_ublock_origin = 'chrome_extensions/ublockorigin.crx'
+    path_to_https_everywhere = 'chrome_extensions/httpseverywhere.crx'
+    path_to_decentraleyes = 'chrome_extensions/decentraleyes.crx'
 
     logging.debug("Setting up Selenium WebDriver")
     options = webdriver.ChromeOptions()
     options.add_extension(path_to_ublock_origin)
     options.add_extension(path_to_https_everywhere)
+    options.add_extension(path_to_decentraleyes)
     options.add_argument(f'user-agent={user_agent}')
     options.add_argument('--incognito')
     options.add_argument('--disable-plugins-discovery')
