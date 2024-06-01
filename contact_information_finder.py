@@ -80,7 +80,6 @@ def set_up_driver():
     path_to_https_everywhere = 'chrome_extensions/httpseverywhere.crx'
     path_to_decentraleyes = 'chrome_extensions/decentraleyes.crx'
 
-    logging.debug("Setting up Selenium WebDriver")
     options = webdriver.ChromeOptions()
     options.add_extension(path_to_ublock_origin)
     options.add_extension(path_to_https_everywhere)
@@ -307,12 +306,13 @@ def setup_paths_and_logging(search_queries):
     current_datetime = datetime.now()
     current_formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     current_date = current_datetime.strftime("%Y_%m_%d")
+    current_time = current_datetime.strftime("%H-%M-%S")
 
     results_path = os.path.join("Results", current_date)
     os.makedirs(results_path, exist_ok=True)
     
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
-    log_filepath = os.path.join(results_path, f"{search_queries[0].replace(' ', '_')}_{current_date}.log")
+    log_filepath = os.path.join(results_path, f"{search_queries[0].replace(' ', '_')}_{current_date}_{current_time}.log")
     
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
