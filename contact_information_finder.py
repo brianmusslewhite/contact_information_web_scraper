@@ -2,6 +2,7 @@ import logging
 import re
 import os
 import random
+import time
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
@@ -19,7 +20,13 @@ from email_validator import validate_email, EmailNotValidError
 
 def get_gigablast_search_results(query, clicks=0, timeout=30):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
+    if not is_allowed(url):
+        logging.debug(f"Access denied by robots.txt for URL: {url}")
+        return []
+    
     driver = set_up_driver()
+    time.sleep(random.uniform(1, 3))
+
     logging.debug(f"Fetching search results from: {url}")
     driver.get(url)
     WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
@@ -45,6 +52,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
                 WebDriverWait(driver, 10).until(
                     lambda d: len(d.find_elements(By.CLASS_NAME, 'searpList')) > num_results_before
                 )
+                time.sleep(random.uniform(1, 3))
             except Exception as e:
                 logging.error(f"No more results button found or failed to click: {e}")
                 break
@@ -134,9 +142,9 @@ def set_up_driver():
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(60)
-    driver.set_script_timeout(60)
-    driver.implicitly_wait(60) 
+    driver.set_page_load_timeout(80)
+    driver.set_script_timeout(80)
+    driver.implicitly_wait(80) 
     return driver
 
 @lru_cache()
@@ -335,34 +343,34 @@ if __name__ == "__main__":
     search_queries = [
         "Texas saltwater fishing guides",
         "Best Texas saltwater fishing",
-        # "Texas saltwater fishing guides contact information",
-        # "Saltwater fishing guides in Texas",
-        # "Texas saltwater fishing charters contact details",
-        # "Fishing guide services Texas Gulf Coast",
-        # "Texas coast fishing guides contact info",
-        # "Galveston saltwater fishing guides contact",
-        # "Corpus Christi saltwater fishing charters contact",
-        # "Port Aransas fishing guides contact information",
-        # "South Padre Island fishing guides contact details",
-        # "Rockport Texas saltwater fishing guides contact info",
-        # "Texas saltwater fishing guides Yelp",
-        # "Texas fishing charters TripAdvisor",
-        # "Saltwater fishing guides Texas Google Maps",
-        # "Texas fishing guides directory",
-        # "Best saltwater fishing guides in Texas",
-        # "Texas Professional Fishing Guides Association",
-        # "Texas fishing guides association members contact",
-        # "Texas Parks and Wildlife fishing guides list",
-        # "Texas fishing guides yellow pages",
-        # "Texas saltwater fishing guides Facebook",
-        # "Texas fishing guides Instagram",
-        # "Fishing forums Texas saltwater guides",
-        # "Texas fishing groups contact information",
-        # '"Texas saltwater fishing guides" site:texas.gov',
-        # '"Texas saltwater fishing guides" site:facebook.com',
-        # '"Texas saltwater fishing guides" site:tripadvisor.com',
-        # '"Texas saltwater fishing guides directory" site:texas.gov',
-        # '"Galveston fishing guides contact" site:tripadvisor.com'
+        "Texas saltwater fishing guides contact information",
+        "Saltwater fishing guides in Texas",
+        "Texas saltwater fishing charters contact details",
+        "Fishing guide services Texas Gulf Coast",
+        "Texas coast fishing guides contact info",
+        "Galveston saltwater fishing guides contact",
+        "Corpus Christi saltwater fishing charters contact",
+        "Port Aransas fishing guides contact information",
+        "South Padre Island fishing guides contact details",
+        "Rockport Texas saltwater fishing guides contact info",
+        "Texas saltwater fishing guides Yelp",
+        "Texas fishing charters TripAdvisor",
+        "Saltwater fishing guides Texas Google Maps",
+        "Texas fishing guides directory",
+        "Best saltwater fishing guides in Texas",
+        "Texas Professional Fishing Guides Association",
+        "Texas fishing guides association members contact",
+        "Texas Parks and Wildlife fishing guides list",
+        "Texas fishing guides yellow pages",
+        "Texas saltwater fishing guides Facebook",
+        "Texas fishing guides Instagram",
+        "Fishing forums Texas saltwater guides",
+        "Texas fishing groups contact information",
+        '"Texas saltwater fishing guides" site:texas.gov',
+        '"Texas saltwater fishing guides" site:facebook.com',
+        '"Texas saltwater fishing guides" site:tripadvisor.com',
+        '"Texas saltwater fishing guides directory" site:texas.gov',
+        '"Galveston fishing guides contact" site:tripadvisor.com'
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
@@ -371,7 +379,7 @@ if __name__ == "__main__":
     
     logging.info(f"Starting with queries: {search_queries}")
     
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=len(search_queries)) as executor:
         future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=20): query for query in search_queries}
         for future in as_completed(future_to_query):
             urls = future.result()
@@ -380,7 +388,7 @@ if __name__ == "__main__":
     
     logging.info(f"Collected {len(all_urls)} urls from all queries. Starting to process.")
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=int(os.cpu_count()*2.5)) as executor:
         future_to_url = {executor.submit(process_url, url): url for url in all_urls}
         processed_count = 0
         for future in as_completed(future_to_url):
