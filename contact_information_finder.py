@@ -1,22 +1,23 @@
 import logging
 import re
 import os
+import random
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
+import urllib.robotparser
+
 import pandas as pd
 import phonenumbers
-import random
-import time
-import urllib.robotparser
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from email_validator import validate_email, EmailNotValidError
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+from email_validator import validate_email, EmailNotValidError
 
 
-def get_gigablast_search_results(query, clicks=0, timeout=10):
+def get_gigablast_search_results(query, clicks=0, timeout=30):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
     driver = set_up_driver()
     logging.debug(f"Fetching search results from: {url}")
@@ -138,7 +139,7 @@ def set_up_driver():
     driver.implicitly_wait(60) 
     return driver
 
-
+@lru_cache()
 def is_allowed(url, user_agent='Mozilla/5.0'):
     parser = urllib.robotparser.RobotFileParser()
     parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
@@ -305,10 +306,19 @@ def setup_paths_and_logging(search_queries):
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
     log_filepath = os.path.join(results_path, f"{search_queries[0].replace(' ', '_')}_{current_date}.log")
     
-    logging.basicConfig(filename=log_filepath, filemode='a', format=log_format, level=logging.INFO)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    file_handler = logging.FileHandler(log_filepath)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(log_format))
+    root_logger.addHandler(file_handler)
+
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(logging.Formatter(log_format))
-    logging.root.addHandler(console_handler)
+    root_logger.addHandler(console_handler)
+    
     logging.info("Logging started")
 
     selenium_logger = logging.getLogger('selenium')
@@ -325,34 +335,34 @@ if __name__ == "__main__":
     search_queries = [
         "Texas saltwater fishing guides",
         "Best Texas saltwater fishing",
-        "Texas saltwater fishing guides contact information",
-        "Saltwater fishing guides in Texas",
-        "Texas saltwater fishing charters contact details",
-        "Fishing guide services Texas Gulf Coast",
-        "Texas coast fishing guides contact info",
-        "Galveston saltwater fishing guides contact",
-        "Corpus Christi saltwater fishing charters contact",
-        "Port Aransas fishing guides contact information",
-        "South Padre Island fishing guides contact details",
-        "Rockport Texas saltwater fishing guides contact info",
-        "Texas saltwater fishing guides Yelp",
-        "Texas fishing charters TripAdvisor",
-        "Saltwater fishing guides Texas Google Maps",
-        "Texas fishing guides directory",
-        "Best saltwater fishing guides in Texas",
-        "Texas Professional Fishing Guides Association",
-        "Texas fishing guides association members contact",
-        "Texas Parks and Wildlife fishing guides list",
-        "Texas fishing guides yellow pages",
-        "Texas saltwater fishing guides Facebook",
-        "Texas fishing guides Instagram",
-        "Fishing forums Texas saltwater guides",
-        "Texas fishing groups contact information",
-        '"Texas saltwater fishing guides" site:texas.gov',
-        '"Texas saltwater fishing guides" site:facebook.com',
-        '"Texas saltwater fishing guides" site:tripadvisor.com',
-        '"Texas saltwater fishing guides directory" site:texas.gov',
-        '"Galveston fishing guides contact" site:tripadvisor.com'
+        # "Texas saltwater fishing guides contact information",
+        # "Saltwater fishing guides in Texas",
+        # "Texas saltwater fishing charters contact details",
+        # "Fishing guide services Texas Gulf Coast",
+        # "Texas coast fishing guides contact info",
+        # "Galveston saltwater fishing guides contact",
+        # "Corpus Christi saltwater fishing charters contact",
+        # "Port Aransas fishing guides contact information",
+        # "South Padre Island fishing guides contact details",
+        # "Rockport Texas saltwater fishing guides contact info",
+        # "Texas saltwater fishing guides Yelp",
+        # "Texas fishing charters TripAdvisor",
+        # "Saltwater fishing guides Texas Google Maps",
+        # "Texas fishing guides directory",
+        # "Best saltwater fishing guides in Texas",
+        # "Texas Professional Fishing Guides Association",
+        # "Texas fishing guides association members contact",
+        # "Texas Parks and Wildlife fishing guides list",
+        # "Texas fishing guides yellow pages",
+        # "Texas saltwater fishing guides Facebook",
+        # "Texas fishing guides Instagram",
+        # "Fishing forums Texas saltwater guides",
+        # "Texas fishing groups contact information",
+        # '"Texas saltwater fishing guides" site:texas.gov',
+        # '"Texas saltwater fishing guides" site:facebook.com',
+        # '"Texas saltwater fishing guides" site:tripadvisor.com',
+        # '"Texas saltwater fishing guides directory" site:texas.gov',
+        # '"Galveston fishing guides contact" site:tripadvisor.com'
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
@@ -372,11 +382,17 @@ if __name__ == "__main__":
 
     with ThreadPoolExecutor() as executor:
         future_to_url = {executor.submit(process_url, url): url for url in all_urls}
+        processed_count = 0
         for future in as_completed(future_to_url):
             contacts = future.result()
             if contacts:
                 all_contacts.extend(contacts)
                 logging.debug(f"Completed processing: {future_to_url[future]}")
+                        # Increment the processed count
+            processed_count += 1
+            
+            if processed_count % 50 == 0:
+                logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
     
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
