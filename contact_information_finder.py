@@ -46,7 +46,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
                     lambda d: len(d.find_elements(By.CLASS_NAME, 'searpList')) > num_results_before
                 )
             except Exception as e:
-                logging.debug(f"No more results button found or failed to click: {e}")
+                logging.error(f"No more results button found or failed to click: {e}")
                 break
 
     search_results = driver.page_source
@@ -236,13 +236,13 @@ def process_url(url):
 
 def save_to_csv(contacts, filename):
     if contacts.empty:
-        logging.warning("No contacts to save in csv.")
+        logging.critical("No contacts to save in csv.")
         return
     try:
         contacts.to_csv(filename, index=False)
         logging.info(f"Data saved to {filename}. Total unique contacts: {len(contacts)}")
     except Exception as e:
-        logging.error(f"Saving to CSV failed with error: {e}")
+        logging.critical(f"Saving to CSV failed with error: {e}")
 
 
 def standardize_phone(phone, region='US'):
@@ -388,9 +388,8 @@ if __name__ == "__main__":
             if contacts:
                 all_contacts.extend(contacts)
                 logging.debug(f"Completed processing: {future_to_url[future]}")
-                        # Increment the processed count
-            processed_count += 1
             
+            processed_count += 1
             if processed_count % 50 == 0:
                 logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
     
