@@ -133,9 +133,9 @@ def set_up_driver():
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(30)
-    driver.set_script_timeout(30)
-    driver.implicitly_wait(30) 
+    driver.set_page_load_timeout(45)
+    driver.set_script_timeout(45)
+    driver.implicitly_wait(45) 
     return driver
 
 
@@ -338,8 +338,8 @@ if __name__ == "__main__":
         else:
             logging.info(f"URLs are empty for: {query}")
             continue
-
-        with ThreadPoolExecutor(max_workers=min(40,len(urls))) as executor:
+        
+        with ThreadPoolExecutor(max_workers=int(os.cpu_count()*1.7)) as executor:
             future_to_url = {executor.submit(process_url, url): url for url in urls}
             for future in as_completed(future_to_url):
                 contacts = future.result()
