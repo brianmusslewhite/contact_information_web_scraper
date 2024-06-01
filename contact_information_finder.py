@@ -361,7 +361,6 @@ if __name__ == "__main__":
     
     logging.info(f"Starting with queries: {search_queries}")
     
-    # Run the search queries in parallel
     with ThreadPoolExecutor() as executor:
         future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=20): query for query in search_queries}
         for future in as_completed(future_to_query):
@@ -371,7 +370,6 @@ if __name__ == "__main__":
     
     logging.info(f"Collected {len(all_urls)} urls from all queries. Starting to process.")
 
-    # Process the collected URLs in parallel
     with ThreadPoolExecutor() as executor:
         future_to_url = {executor.submit(process_url, url): url for url in all_urls}
         for future in as_completed(future_to_url):
