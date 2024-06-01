@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import phonenumbers
 import random
+import time
 import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -15,12 +16,41 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 
-def get_gigablast_search_results(query):
-    # To-do: Modify this to retrieve more results by clicking the more button
+def get_gigablast_search_results(query, clicks=0, timeout=10):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
+    driver = set_up_driver()
     logging.debug(f"Fetching search results from: {url}")
+    driver.get(url)
+    WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    
+    # Check if jQuery is available on the page and wait for AJAX if so
+    jquery_loaded = driver.execute_script("return typeof jQuery != 'undefined'")
+    if jquery_loaded:
+        WebDriverWait(driver, timeout).until(
+            lambda d: d.execute_script('return jQuery.active == 0')
+        )
 
-    search_results = fetch_html(url)
+    if clicks > 0:
+        for _ in range(clicks):
+            try:
+                more_results_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CLASS_NAME, 'result--more__btn'))
+                )
+                current_results = driver.find_elements(By.CLASS_NAME, 'searpList')
+                num_results_before = len(current_results)
+                
+                more_results_button.click()
+                
+                WebDriverWait(driver, 10).until(
+                    lambda d: len(d.find_elements(By.CLASS_NAME, 'searpList')) > num_results_before
+                )
+            except Exception as e:
+                logging.debug(f"No more results button found or failed to click: {e}")
+                break
+
+    search_results = driver.page_source
+    driver.quit()
+
     soup = BeautifulSoup(search_results, 'html.parser')
     links = soup.find_all('a', attrs={'data-target': True})
     urls = [link['data-target'] for link in links if link['data-target'].startswith('http') and "anon.toorgle.com" not in link['data-target']]
@@ -292,6 +322,8 @@ def setup_paths_and_logging(search_queries):
 if __name__ == "__main__":
     search_queries = [
         "Texas saltwater fishing guides",
+        "Best Texas saltwater fishing",
+        "Texas saltwater fishing guides contact information",
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
@@ -300,14 +332,14 @@ if __name__ == "__main__":
     logging.info(f"Starting with queries: {search_queries}")
     for query in search_queries:
         logging.info(f"Starting query: {query}")
-        urls = get_gigablast_search_results(query)
+        urls = get_gigablast_search_results(query, clicks=20)
         if urls:
-            logging.info(f"Got urls for: {query}")
+            logging.info(f"Got {len(urls)} urls for: {query}")
         else:
             logging.info(f"URLs are empty for: {query}")
             continue
 
-        with ThreadPoolExecutor(max_workers=min(50,len(urls))) as executor:
+        with ThreadPoolExecutor(max_workers=min(40,len(urls))) as executor:
             future_to_url = {executor.submit(process_url, url): url for url in urls}
             for future in as_completed(future_to_url):
                 contacts = future.result()
