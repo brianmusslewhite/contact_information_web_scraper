@@ -3,6 +3,7 @@ import re
 import os
 import pandas as pd
 import phonenumbers
+import random
 import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -28,22 +29,47 @@ def get_gigablast_search_results(query):
 
 
 def set_up_driver():
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+        "Mozilla/5.0 (iPad; CPU OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0",
+        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; AS; rv:11.0) like Gecko",
+        "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Mobile Safari/537.36",
+        "Mozilla/5.0 (Linux; Android 10; SM-G985F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Mobile Safari/537.36"
+    ]
+
+    user_agent = random.choice(user_agents)
+    path_to_ublock_origin = '1.58.0_0.crx'
+
     logging.debug("Setting up Selenium WebDriver")
     options = webdriver.ChromeOptions()
+    options.add_extension(path_to_ublock_origin)
+    options.add_argument(f'user-agent={user_agent}')
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
+    options.add_argument("--disable-plugins-discovery")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument('--incognito')
     options.add_argument('--window-size=1920,1080')
 
-    # Disable file downloads and images
     prefs = {
         "download.prompt_for_download": False,
         "download.default_directory": "/dev/null",
         "download.directory_upgrade": True,
         "plugins.always_open_pdf_externally": True,
         "profile.default_content_settings.popups": 0,
-        "profile.managed_default_content_settings.images": 2
+        "profile.managed_default_content_settings.images": 2,
+        "profile.default_content_settings.stylesheets": 2,
+        "profile.default_content_settings.fonts": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+        "profile.default_content_setting_values.media_stream_camera": 2,
+        "profile.default_content_setting_values.media_stream_mic": 2,
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(options=options)
@@ -89,7 +115,7 @@ def proximity_based_extraction(soup, url):
 
     phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
     email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-    address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
+    # address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
     website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
     name_regex = r"(Mr\.|Mrs\.|Ms\.|Dr\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
 
@@ -99,7 +125,7 @@ def proximity_based_extraction(soup, url):
 
         phones = tuple(re.findall(phone_regex, text, re.IGNORECASE))
         emails = tuple(re.findall(email_regex, text, re.IGNORECASE))
-        addresses = tuple(re.findall(address_regex, text, re.IGNORECASE))
+        # addresses = tuple(re.findall(address_regex, text, re.IGNORECASE))
         websites = tuple(re.findall(website_regex, text, re.IGNORECASE))
         names = tuple(re.findall(name_regex, text))
 
@@ -109,8 +135,8 @@ def proximity_based_extraction(soup, url):
                 'phone2': phones[1] if len(phones) > 1 else '',
                 'email1': emails[0] if len(emails) > 0 else '',
                 'email2': emails[1] if len(emails) > 1 else '',
-                'address1': addresses[0] if len(addresses) > 0 else '',
-                'address2': addresses[1] if len(addresses) > 1 else '',
+                # 'address1': addresses[0] if len(addresses) > 0 else '',
+                # 'address2': addresses[1] if len(addresses) > 1 else '',
                 'website1': websites[0] if len(websites) > 0 else '',
                 'website2': websites[1] if len(websites) > 1 else '',
             }
@@ -128,6 +154,20 @@ def proximity_based_extraction(soup, url):
                 seen_data.add(contact_id)
                 contacts.append(contact_details)
     return contacts
+
+
+def process_url(url):
+    try:
+        logging.debug(f"Processing URL: {url}")
+        html_content = fetch_html(url)
+        if html_content:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            contacts = proximity_based_extraction(soup, url)
+            return contacts
+        return []
+    except Exception as e:
+        logging.error(f"Error processing URL {url}: {e}")
+        return []
 
 
 def save_to_csv(contacts, filename):
@@ -189,42 +229,30 @@ def clean_contact_information(all_contacts):
     return contact_info
 
 
-def process_url(url):
-    try:
-        logging.debug(f"Processing URL: {url}")
-        html_content = fetch_html(url)
-        if html_content:
-            soup = BeautifulSoup(html_content, 'html.parser')
-            contacts = proximity_based_extraction(soup, url)
-            return contacts
-        return []
-    except Exception as e:
-        logging.error(f"Error processing URL {url}: {e}")
-        return []
-
-
 def setup_paths_and_logging(search_queries):
     current_datetime = datetime.now()
     current_formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     current_date = current_datetime.strftime("%Y_%m_%d")
 
     results_path = os.path.join("Results", current_date)
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
+    os.makedirs(results_path, exist_ok=True)
     
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
     log_filepath = os.path.join(results_path, f"{search_queries[0].replace(' ', '_')}_{current_date}.log")
+    
     logging.basicConfig(filename=log_filepath, filemode='a', format=log_format, level=logging.INFO)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(log_format))
     logging.root.addHandler(console_handler)
     logging.info("Logging started")
+
     selenium_logger = logging.getLogger('selenium')
     selenium_logger.setLevel(logging.WARNING)
 
     csv_filename = f"{current_formatted_datetime}_{search_queries[0].replace(' ', '-')}.csv"
     csv_filepath = os.path.join(results_path, csv_filename)
     logging.info(f"CSV Filepath: {csv_filepath}")
+    
     return csv_filepath
 
 
