@@ -22,17 +22,22 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+log_lock = threading.Lock()
+
+def safe_log(log_function, *args, **kwargs):
+    with log_lock:
+        log_function(*args, **kwargs)
 
 def get_gigablast_search_results(query, clicks=0, timeout=30):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
     if not is_allowed(url):
-        logging.debug(f"Access denied by robots.txt for URL: {url}")
+        safe_log(logging.debug, f"Access denied by robots.txt for URL: {url}")
         return []
     
     driver = set_up_driver()
     time.sleep(random.uniform(1, 5))
 
-    logging.debug(f"Fetching search results from: {url}")
+    safe_log(logging.debug, f"Fetching search results from: {url}")
     driver.get(url)
     WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     
@@ -59,7 +64,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
                 )
                 time.sleep(random.uniform(1, 3))
             except Exception as e:
-                logging.error(f"No more results button found or failed to click: {e}")
+                safe_log(logging.error, f"No more results button found or failed to click: {e}")
                 break
 
     search_results = driver.page_source
@@ -152,7 +157,7 @@ def set_up_driver():
         driver.implicitly_wait(80)
         return driver
     except Exception as e:
-        logging.error(f"Error setting up Chrome driver: {e}")
+        safe_log(logging.error, f"Error setting up Chrome driver: {e}")
         raise
 
 
@@ -165,13 +170,13 @@ def is_allowed(url, user_agent='Mozilla/5.0'):
 
 
 def fetch_html(url, timeout=60):
-    logging.debug(f"Fetching url: {url}")
+    safe_log(logging.debug, f"Fetching url: {url}")
     if not validators.url(url):
-        logging.warning(f"Invalid url: {url}")
+        safe_log(logging.warning, f"Invalid url: {url}")
         return ""
 
     if not is_allowed(url):
-        logging.debug(f"Access denied by robots.txt for URL: {url}")
+        safe_log(logging.debug, f"Access denied by robots.txt for URL: {url}")
         return ""
 
     driver = set_up_driver()
@@ -179,18 +184,18 @@ def fetch_html(url, timeout=60):
 
     def load_url(driver, url):
         try:
-            logging.debug(f"Starting getting: {url}")
+            safe_log(logging.debug, f"Starting getting: {url}")
             driver.get(url)
-            logging.debug(f"Finished getting: {url}")
+            safe_log(logging.debug, f"Finished getting: {url}")
         except Exception as e:
-            logging.debug(f"Error while getting: {e}")
+            safe_log(logging.debug, f"Error while getting: {e}")
     
     try:
         load_thread = threading.Thread(target=load_url, args=(driver, url))
         load_thread.start()
         load_thread.join(timeout)
         if load_thread.is_alive():
-            logging.warning(f"Timeout exceeded while fetching URL: {url}")
+            safe_log(logging.warning, f"Timeout exceeded while fetching URL: {url}")
             return ""
         
         WebDriverWait(driver, timeout).until(
@@ -200,38 +205,38 @@ def fetch_html(url, timeout=60):
         # Check if jQuery is available and handle AJAX with a maximum wait limit
         jquery_loaded = driver.execute_script("return typeof jQuery != 'undefined'")
         if jquery_loaded:
-            logging.debug(f"jQuery detected in: {url}")
+            safe_log(logging.debug, f"jQuery detected in: {url}")
             start_time = time.time()
             while time.time() - start_time < timeout:
                 ajax_active = driver.execute_script('return jQuery.active')
                 if ajax_active == 0:
-                    logging.debug(f"AJAX finished loading in: {url}")
+                    safe_log(logging.debug, f"AJAX finished loading in: {url}")
                     break
                 time.sleep(0.5)
             else:
-                logging.warning(f"Timed out waiting for AJAX calls to complete at {url}")
+                safe_log(logging.warning, f"Timed out waiting for AJAX calls to complete at {url}")
         
         html_content = driver.page_source
-        logging.debug(f"Successfully fetched HTML for {url}")
+        safe_log(logging.debug, f"Successfully fetched HTML for {url}")
     except TimeoutException:
-        logging.warning(f"Timeout while waiting for page elements on {url}")
+        safe_log(logging.warning, f"Timeout while waiting for page elements on {url}")
     except NoSuchElementException:
-        logging.warning(f"Required element not found on {url}")
+        safe_log(logging.warning, f"Required element not found on {url}")
     except WebDriverException as e:
-        logging.warning(f"WebDriver error encountered on {url}: {e}")
+        safe_log(logging.warning, f"WebDriver error encountered on {url}: {e}")
     except Exception as e:
-        logging.warning(f"An unexpected error occurred on {url}: {e}")
+        safe_log(logging.warning, f"An unexpected error occurred on {url}: {e}")
     finally:
         if driver:
             try:
                 driver.quit()
             except Exception as e:
-                logging.error(f"Error quitting driver: {e}")
+                safe_log(logging.error, f"Error quitting driver: {e}")
     return html_content
 
 
 def proximity_based_extraction(soup, url):
-    logging.debug(f"Starting proximety based extraction for: {url}")
+    safe_log(logging.debug, f"Starting proximety based extraction for: {url}")
     contacts = []
     seen_data = set()
 
@@ -276,15 +281,15 @@ def proximity_based_extraction(soup, url):
                 if contact_id not in seen_data:
                     seen_data.add(contact_id)
                     contacts.append(contact_details)
-        logging.debug(f"Contacts found in {url}, {contacts}")
+        safe_log(logging.debug, f"Contacts found in {url}, {contacts}")
         return contacts
     except Exception as e:
-        logging.warning(f"Error: {e}, processing a blocks in url: {url}")
+        safe_log(logging.warning, f"Error: {e}, processing a blocks in url: {url}")
     return[]
 
 
 def process_url(url):
-    logging.debug(f"Processing URL: {url}")
+    safe_log(logging.debug, f"Processing URL: {url}")
     try:
         time.sleep(0.0001)
         html_content = fetch_html(url)
@@ -293,22 +298,22 @@ def process_url(url):
             contacts = proximity_based_extraction(soup, url)
             return contacts
         else:
-            logging.debug(f"No html content for: {url}")
+            safe_log(logging.debug, f"No html content for: {url}")
         return []
     except Exception as e:
-        logging.warning(f"Error processing URL {url}: {e}")
+        safe_log(logging.warning, f"Error processing URL {url}: {e}")
     return []
 
 
 def save_to_csv(contacts, filename):
     if contacts.empty:
-        logging.critical("No contacts to save in csv.")
+        safe_log(logging.critical, "No contacts to save in csv.")
         return
     try:
         contacts.to_csv(filename, index=False)
-        logging.info(f"Data saved to {filename}. Total unique contacts: {len(contacts)}")
+        safe_log(logging.info, f"Data saved to {filename}. Total unique contacts: {len(contacts)}")
     except Exception as e:
-        logging.critical(f"Saving to CSV failed with error: {e}")
+        safe_log(logging.critical, f"Saving to CSV failed with error: {e}")
 
 
 def clean_contact_information(all_contacts):
@@ -322,7 +327,7 @@ def clean_contact_information(all_contacts):
             else:
                 return ""
         except phonenumbers.NumberParseException:
-            logging.warning(f"Failed to standardize: {phone}")
+            safe_log(logging.warning, f"Failed to standardize: {phone}")
             return ""
 
     def standardize_email(email):
@@ -332,15 +337,15 @@ def clean_contact_information(all_contacts):
             v = validate_email(email)
             return v.email
         except EmailNotValidError as e:
-            logging.warning(f"Invalid email: {email}, error: {e}")
+            safe_log(logging.warning, f"Invalid email: {email}, error: {e}")
             return ""
     
     if not all_contacts:
-        logging.warning("No contact information provided for cleaning.")
+        safe_log(logging.warning, "No contact information provided for cleaning.")
         return pd.DataFrame()
 
     contact_info = pd.DataFrame(all_contacts)
-    logging.info(f"Cleaning contact information. Length before cleaning: {len(contact_info)}")
+    safe_log(logging.info, f"Cleaning contact information. Length before cleaning: {len(contact_info)}")
     
     # clean phone
     contact_info['phone1'] = contact_info['phone1'].apply(standardize_phone)
@@ -359,7 +364,7 @@ def clean_contact_information(all_contacts):
     # remove partial duplicates
     # to-do
 
-    logging.info(f"Cleaning complete. Length after cleaning: {len(contact_info)}")
+    safe_log(logging.info, f"Cleaning complete. Length after cleaning: {len(contact_info)}")
     return contact_info
 
 
@@ -388,7 +393,7 @@ def setup_paths_and_logging(search_queries):
     console_handler.setFormatter(logging.Formatter(log_format))
     root_logger.addHandler(console_handler)
     
-    logging.info("Logging started")
+    safe_log(logging.info, "Logging started")
 
     for logger_name in ['selenium', 'urllib3', 'http.client']:
         logger = logging.getLogger(logger_name)
@@ -396,7 +401,7 @@ def setup_paths_and_logging(search_queries):
 
     csv_filename = f"{current_formatted_datetime}_{search_queries[0].replace(' ', '-')}.csv"
     csv_filepath = os.path.join(results_path, csv_filename)
-    logging.info(f"CSV Filepath: {csv_filepath}")
+    safe_log(logging.info, f"CSV Filepath: {csv_filepath}")
     
     return csv_filepath
 
@@ -434,49 +439,51 @@ if __name__ == "__main__":
     all_urls = []
     all_contacts = []
     
-    logging.info(f"Starting with queries: {search_queries}")
-    with ThreadPoolExecutor(max_workers=len(search_queries)) as executor:
-        future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=0): query for query in search_queries}
+    safe_log(logging.info, f"Starting with queries: {search_queries}")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(search_queries)) as executor:
+        future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=5): query for query in search_queries}
         for future in as_completed(future_to_query):
             urls = future.result()
             if urls:
                 all_urls.extend(urls)
     
-    logging.info(f"Collected {len(all_urls)} urls from all queries. Starting to process.")
+    safe_log(logging.info, f"Collected {len(all_urls)} urls from all queries. Starting to process.")
     start_time = time.time()
     all_contacts = []
 
     try:
-        logging.debug("Starting URL processing with ThreadPoolExecutor.")
-        workers = 1 # int(os.cpu_count() * 2.5)
+        safe_log(logging.debug, "Starting URL processing with ThreadPoolExecutor.")
+        workers = int(os.cpu_count() * 2)
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            logging.debug(f"Executor created with {workers} workers.")
+            safe_log(logging.debug, f"Executor created with {workers} workers.")
             future_to_url = {executor.submit(process_url, url): url for url in all_urls}
-            logging.debug("Submitted all URLs to the executor.")
+            safe_log(logging.debug, "Submitted all URLs to the executor.")
 
             processed_count = 0
             for future in concurrent.futures.as_completed(future_to_url):
                 url = future_to_url[future]
-                logging.debug(f"Processing result for URL: {url}")
+                safe_log(logging.debug, f"Processing result for URL: {url}")
                 try:
                     contacts = future.result(timeout=80)
                     if contacts:
                         all_contacts.extend(contacts)
-                        logging.debug(f"Added contacts from: {url}")
+                        safe_log(logging.debug, f"Added contacts from: {url}")
                     else:
-                        logging.debug(f"No contacts found for: {url}")
+                        safe_log(logging.debug, f"No contacts found for: {url}")
                 except concurrent.futures.TimeoutError:
-                    logging.warning(f"Processing {url} timed out.")
+                    safe_log(logging.warning, f"Processing {url} timed out.")
                 except Exception as e:
-                    logging.error(f"An error occurred while processing {url}: {e}")
+                    safe_log(logging.error, f"An error occurred while processing {url}: {e}")
                 finally:
                     processed_count += 1
-                    logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
+                    if processed_count % 50 == 0:
+                        safe_log(logging.info, f"Processed {processed_count}/{len(all_urls)} URLs")
+                    else:
+                        safe_log(logging.debug, f"Processed {processed_count}/{len(all_urls)} URLs")
 
-        logging.info("Finished processing all URLs")
+        safe_log(logging.info, "Finished processing all URLs")
     except Exception as e:
-        logging.critical("Failed processing URLs!", exc_info=True)
-
+        safe_log(logging.critical, "Failed processing URLs!", exc_info=True)
 
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
