@@ -1,8 +1,6 @@
 import concurrent.futures
 import logging
 import os
-import queue
-import time
 from concurrent.futures import as_completed
 from datetime import datetime
 
@@ -68,25 +66,24 @@ def process_url(url):
 
 def find_contact_info(search_queries):
     csv_filepath = setup_paths_and_logging(search_queries)
-    all_urls = queue.Queue()
     all_contacts = []
+    all_urls = []
     
     logging.info(f"Starting with queries: {search_queries}")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(search_queries)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(search_queries)) as executor:
         future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=0): query for query in search_queries}
         for future in as_completed(future_to_query):
             urls = future.result()
             if urls:
-                for url in urls:
-                    all_urls.put(url)
-    logging.info(f"Collected {all_urls.qsize()} urls from all queries. Starting to process.")
+                all_urls.extend(urls)
+    logging.info(f"Collected {len(all_urls)} urls from all queries. Starting to process.")
 
     try:
         logging.debug("Starting URL processing with ThreadPoolExecutor.")
         workers = int(3*os.cpu_count())
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             logging.debug(f"Executor created with {workers} workers.")
-            future_to_url = {executor.submit(process_url, url): url for url in list(all_urls.queue)}
+            future_to_url = {executor.submit(process_url, url): url for url in all_urls}
             logging.debug("Submitted all URLs to the executor.")
 
             processed_count = 0
@@ -107,9 +104,9 @@ def find_contact_info(search_queries):
 
                 processed_count += 1
                 if processed_count % 50 == 0:
-                    logging.info(f"Processed {processed_count}/{all_urls.qsize()} URLs")
+                    logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
                 else:
-                    logging.debug(f"Processed {processed_count}/{all_urls.qsize()} URLs")
+                    logging.debug(f"Processed {processed_count}/{len(all_urls)} URLs")
 
         logging.info("Finished processing all URLs")
     except Exception as e:
