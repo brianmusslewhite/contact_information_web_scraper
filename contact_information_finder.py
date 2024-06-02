@@ -178,9 +178,12 @@ def fetch_html(url, timeout=60):
     html_content = ""
 
     def load_url(driver, url):
-        logging.debug(f"Starting getting: {url}")
-        driver.get(url)
-        logging.debug(f"Finished getting: {url}")
+        try:
+            logging.debug(f"Starting getting: {url}")
+            driver.get(url)
+            logging.debug(f"Finished getting: {url}")
+        except Exception as e:
+            logging.debug(f"Error while getting: {e}")
     
     try:
         load_thread = threading.Thread(target=load_url, args=(driver, url))
@@ -401,30 +404,30 @@ def setup_paths_and_logging(search_queries):
 if __name__ == "__main__":
     search_queries = [
         "Texas saltwater fishing guides",
-        # "Best Texas saltwater fishing",
-        # "Texas saltwater fishing guides contact information",
-        # "Saltwater fishing guides in Texas",
-        # "Texas saltwater fishing charters contact details",
-        # "Fishing guide services Texas Gulf Coast",
-        # "Texas coast fishing guides contact info",
+        "Best Texas saltwater fishing",
+        "Texas saltwater fishing guides contact information",
+        "Saltwater fishing guides in Texas",
+        "Texas saltwater fishing charters contact details",
+        "Fishing guide services Texas Gulf Coast",
+        "Texas coast fishing guides contact info",
         "Galveston saltwater fishing guides contact",
         "Corpus Christi saltwater fishing charters contact",
         "Port Aransas fishing guides contact information",
         "South Padre Island fishing guides contact details",
         "Rockport Texas saltwater fishing guides contact info",
         "Texas saltwater fishing guides Yelp",
-        # "Texas fishing charters TripAdvisor",
-        # "Saltwater fishing guides Texas Google Maps",
-        # "Texas fishing guides directory",
-        # "Best saltwater fishing guides in Texas",
-        # "Texas Professional Fishing Guides Association",
-        # "Texas fishing guides association members contact",
-        # "Texas Parks and Wildlife fishing guides list",
-        # "Texas fishing guides yellow pages",
-        # "Texas saltwater fishing guides Facebook",
-        # "Texas fishing guides Instagram",
-        # "Fishing forums Texas saltwater guides",
-        # "Texas fishing groups contact information",
+        "Texas fishing charters TripAdvisor",
+        "Saltwater fishing guides Texas Google Maps",
+        "Texas fishing guides directory",
+        "Best saltwater fishing guides in Texas",
+        "Texas Professional Fishing Guides Association",
+        "Texas fishing guides association members contact",
+        "Texas Parks and Wildlife fishing guides list",
+        "Texas fishing guides yellow pages",
+        "Texas saltwater fishing guides Facebook",
+        "Texas fishing guides Instagram",
+        "Fishing forums Texas saltwater guides",
+        "Texas fishing groups contact information",
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
