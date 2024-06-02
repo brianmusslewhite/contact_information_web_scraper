@@ -30,7 +30,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
         return []
     
     driver = set_up_driver()
-    time.sleep(random.uniform(1, 3))
+    time.sleep(random.uniform(1, 5))
 
     logging.debug(f"Fetching search results from: {url}")
     driver.get(url)
