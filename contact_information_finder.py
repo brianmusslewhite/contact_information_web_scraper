@@ -4,12 +4,12 @@ import random
 import re
 import time
 import threading
-import multiprocessing
 import urllib.robotparser
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
+from concurrent.futures import as_completed
 from datetime import datetime
 from functools import lru_cache
+import queue
 
 import pandas as pd
 import phonenumbers
@@ -49,7 +49,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
         )
 
     if clicks > 0:
-        for _ in range(clicks):
+        for click in range(clicks):
             try:
                 more_results_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.CLASS_NAME, 'result--more__btn'))
@@ -57,6 +57,7 @@ def get_gigablast_search_results(query, clicks=0, timeout=30):
                 current_results = driver.find_elements(By.CLASS_NAME, 'searpList')
                 num_results_before = len(current_results)
                 
+                safe_log(logging.debug, f"Click {click+1}/{clicks} for: {url}")
                 more_results_button.click()
                 
                 WebDriverWait(driver, 10).until(
@@ -417,46 +418,46 @@ if __name__ == "__main__":
         "Texas coast fishing guides contact info",
         "Galveston saltwater fishing guides contact",
         "Corpus Christi saltwater fishing charters contact",
-        "Port Aransas fishing guides contact information",
-        "South Padre Island fishing guides contact details",
-        "Rockport Texas saltwater fishing guides contact info",
-        "Texas saltwater fishing guides Yelp",
-        "Texas fishing charters TripAdvisor",
-        "Saltwater fishing guides Texas Google Maps",
-        "Texas fishing guides directory",
-        "Best saltwater fishing guides in Texas",
-        "Texas Professional Fishing Guides Association",
-        "Texas fishing guides association members contact",
-        "Texas Parks and Wildlife fishing guides list",
-        "Texas fishing guides yellow pages",
-        "Texas saltwater fishing guides Facebook",
-        "Texas fishing guides Instagram",
-        "Fishing forums Texas saltwater guides",
-        "Texas fishing groups contact information",
+        # "Port Aransas fishing guides contact information",
+        # "South Padre Island fishing guides contact details",
+        # "Rockport Texas saltwater fishing guides contact info",
+        # "Texas saltwater fishing guides Yelp",
+        # "Texas fishing charters TripAdvisor",
+        # "Saltwater fishing guides Texas Google Maps",
+        # "Texas fishing guides directory",
+        # "Best saltwater fishing guides in Texas",
+        # "Texas Professional Fishing Guides Association",
+        # "Texas fishing guides association members contact",
+        # "Texas Parks and Wildlife fishing guides list",
+        # "Texas fishing guides yellow pages",
+        # "Texas saltwater fishing guides Facebook",
+        # "Texas fishing guides Instagram",
+        # "Fishing forums Texas saltwater guides",
+        # "Texas fishing groups contact information",
     ]
 
     csv_filepath = setup_paths_and_logging(search_queries)
-    all_urls = []
+    all_urls = queue.Queue()
     all_contacts = []
     
     safe_log(logging.info, f"Starting with queries: {search_queries}")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(search_queries)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(search_queries)) as executor:
         future_to_query = {executor.submit(get_gigablast_search_results, query, clicks=5): query for query in search_queries}
         for future in as_completed(future_to_query):
             urls = future.result()
             if urls:
-                all_urls.extend(urls)
+                for url in urls:
+                    all_urls.put(url)
     
-    safe_log(logging.info, f"Collected {len(all_urls)} urls from all queries. Starting to process.")
+    safe_log(logging.info, f"Collected {all_urls.qsize()} urls from all queries. Starting to process.")
     start_time = time.time()
-    all_contacts = []
 
     try:
         safe_log(logging.debug, "Starting URL processing with ThreadPoolExecutor.")
-        workers = int(os.cpu_count() * 2)
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        workers = int(2*os.cpu_count())
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             safe_log(logging.debug, f"Executor created with {workers} workers.")
-            future_to_url = {executor.submit(process_url, url): url for url in all_urls}
+            future_to_url = {executor.submit(process_url, url): url for url in list(all_urls.queue)}
             safe_log(logging.debug, "Submitted all URLs to the executor.")
 
             processed_count = 0
@@ -474,12 +475,12 @@ if __name__ == "__main__":
                     safe_log(logging.warning, f"Processing {url} timed out.")
                 except Exception as e:
                     safe_log(logging.error, f"An error occurred while processing {url}: {e}")
-                finally:
-                    processed_count += 1
-                    if processed_count % 50 == 0:
-                        safe_log(logging.info, f"Processed {processed_count}/{len(all_urls)} URLs")
-                    else:
-                        safe_log(logging.debug, f"Processed {processed_count}/{len(all_urls)} URLs")
+
+                processed_count += 1
+                if processed_count % 50 == 0:
+                    safe_log(logging.info, f"Processed {processed_count}/{all_urls.qsize()} URLs")
+                else:
+                    safe_log(logging.debug, f"Processed {processed_count}/{all_urls.qsize()} URLs")
 
         safe_log(logging.info, "Finished processing all URLs")
     except Exception as e:
