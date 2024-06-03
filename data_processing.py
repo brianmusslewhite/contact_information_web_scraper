@@ -52,7 +52,7 @@ def proximity_based_extraction(soup, url):
                 if contact_id not in seen_data:
                     seen_data.add(contact_id)
                     contacts.append(contact_details)
-        logging.debug(f"Contacts found in {url}, {contacts}")
+        # logging.debug(f"Contacts found in {url}, {contacts}")
         return contacts
     except Exception as e:
         logging.warning(f"Error: {e}, processing a blocks in url: {url}")
@@ -60,7 +60,6 @@ def proximity_based_extraction(soup, url):
 
 
 def clean_contact_information(all_contacts):
-    logging.debug(f"Starting to clean contacts")
     try:
         def standardize_phone(phone, region='US'):
             if pd.isna(phone) or phone == '':
@@ -82,11 +81,11 @@ def clean_contact_information(all_contacts):
                 v = validate_email(email)
                 return v.email
             except EmailNotValidError as e:
-                logging.warning(f"Invalid email: {email}, error: {e}")
+                logging.debug(f"Invalid email: {email}, error: {e}")
                 return ""
         
         if not all_contacts:
-            logging.warning("No contact information provided for cleaning.")
+            logging.critical("No contact information provided for cleaning.")
             return pd.DataFrame()
 
         contact_info = pd.DataFrame(all_contacts)
