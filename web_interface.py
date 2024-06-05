@@ -234,14 +234,3 @@ def fetch_html(url, timeout=60):
         raise e
     finally:
         driver.quit()
-
-
-# def fetch_html_with_retries(url, timeout=60, retries=3):
-#     attempt = 0
-#     while attempt < retries:
-#         html_content = fetch_html(url, timeout)
-#         if html_content:
-#             return html_content
-#         attempt += 1
-#         logging.info(f"Retrying ({attempt}/{retries}) for URL: {url}")
-#     return ""
