@@ -6,7 +6,7 @@ import phonenumbers
 from email_validator import validate_email, EmailNotValidError
 
 
-def proximity_based_extraction(soup, url):
+def proximity_based_extraction(soup, url, manager):
     try:
         logging.debug(f"Starting proximety based extraction for: {url}")
         contacts = []

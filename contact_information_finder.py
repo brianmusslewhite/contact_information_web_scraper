@@ -1,6 +1,10 @@
 import concurrent.futures
+import collections
 import logging
 import os
+import queue
+import threading
+import time
 from datetime import datetime
 
 from bs4 import BeautifulSoup
@@ -8,6 +12,7 @@ from bs4 import BeautifulSoup
 from data_processing import proximity_based_extraction, clean_contact_information, save_to_csv
 from web_interface import get_gigablast_search_results, fetch_html, InvalidURLException, AccessDeniedException
 
+COUNTER = 0
 
 def setup_paths_and_logging(search_queries):
     current_datetime = datetime.now()
@@ -51,19 +56,50 @@ def setup_paths_and_logging(search_queries):
     return csv_filepath, urls_filepath
 
 
-def process_url(url):
+def process_url(url, manager):
     try:
         logging.debug(f"Starting to process URL: {url}")
         html_content = fetch_html(url)
         if html_content:
             soup = BeautifulSoup(html_content, 'html.parser')
-            contacts = proximity_based_extraction(soup, url)
+            contacts = proximity_based_extraction(soup, url, manager)
             return contacts
         else:
             logging.debug(f"No html content for: {url}")
             return []
     except Exception as e:
         raise e
+
+
+class URLProcessingManager:
+    def __init__(self, initial_urls):
+        self.url_queue = collections.deque(initial_urls)
+        self.total_count = len(initial_urls)
+        self.processed_count = 0
+        self.count_lock = threading.Lock()
+
+    def add_url(self, url):
+        with self.count_lock:
+            self.url_queue.append(url)
+            self.total_count += 1
+
+    def get_next_url(self):
+        with self.count_lock:
+            if self.url_queue:
+                return self.url_queue.popleft()
+            return None
+
+    def increment_processed(self):
+        with self.count_lock:
+            self.processed_count += 1
+            self.log_progress()
+            return self.processed_count
+
+    def log_progress(self):
+        if self.processed_count % 50 == 0:
+            logging.info(f"Processed {self.processed_count}/{self.total_count} URLs")
+        else:
+            logging.debug(f"Processed {self.processed_count}/{self.total_count} URLs")
 
 
 def find_contact_info(search_queries, clicks=0, use_test_urls=False):
@@ -90,39 +126,42 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
         all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
     
     logging.info(f"Collected {len(all_urls)} urls. Starting to process.")
-    processed_count = 0
+    manager = URLProcessingManager(all_urls)
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in all_urls}
-            logging.debug(f"Executor created with {workers} workers and all URLs submitted")
-            for future in concurrent.futures.as_completed(future_to_url):
-                try:
-                    url = future_to_url[future]
-                    logging.debug(f"Processing result for URL: {url}")
+            logging.debug(f"Executor created with {workers} workers")
+            futures_to_urls = {}
+            while manager.url_queue or futures_to_urls:
+                while manager.url_queue and len(futures_to_urls) < workers:
+                    url = manager.get_next_url()
+                    if url:
+                        future = executor.submit(process_url, url, manager)
+                        futures_to_urls[future] = url
+                        logging.debug(f"Submitting {url} to processor")
 
-                    contacts = future.result()
-                    if contacts:
-                        all_contacts.extend(contacts)
-                        logging.debug(f"Added contacts from: {url}")
-                    else:
-                        logging.debug(f"No contacts found for: {url}")
-                except InvalidURLException as e:
-                    logging.debug(e)
-                except AccessDeniedException as e:
-                    logging.debug(e)
-                except concurrent.futures.TimeoutError:
-                    logging.warning(f"Timeout occurred processing {future_to_url[future]}")
-                except Exception as e:
-                    logging.warning(f"Error retrieving result from {future_to_url[future]}: {str(e)}")
-                finally:
-                    processed_count += 1
-                    if processed_count % 50 == 0:
-                        logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
-                    else:
-                        logging.debug(f"Processed {processed_count}/{len(all_urls)} URLs")
+                done_futures = [f for f in futures_to_urls if f.done()]
+                for future in done_futures:
+                    url = futures_to_urls.pop(future)
+                    try:
+                        contacts = future.result()
+                        if contacts:
+                            all_contacts.extend(contacts)
+                            logging.debug(f"Added contacts from: {url}")
+                        else:
+                            logging.debug(f"No contacts found for: {url}")
+                    except InvalidURLException as e:
+                        logging.debug(e)
+                    except AccessDeniedException as e:
+                        logging.debug(e)
+                    except concurrent.futures.TimeoutError:
+                        logging.warning(f"Timeout occurred processing: {url}")
+                    except Exception as e:
+                        logging.warning(f"Error retrieving result from: {url}: {str(e)}")
+                    finally:
+                        manager.increment_processed()
     except Exception as e:
-        logging.critical(f"Parrallel URL processing failure! {e}")
+        logging.critical(f"Parallel URL processing failure! {e}")
 
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)

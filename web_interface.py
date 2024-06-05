@@ -92,9 +92,9 @@ def set_up_driver():
         }
         options.add_experimental_option("prefs", prefs)
         driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(180)
-        driver.set_script_timeout(180)
-        driver.implicitly_wait(180)
+        driver.set_page_load_timeout(70)
+        driver.set_script_timeout(70)
+        driver.implicitly_wait(70)
         return driver
     except Exception as e:
         if driver:
