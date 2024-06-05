@@ -217,6 +217,7 @@ def fetch_html(url, timeout=60):
     try:
         driver = set_up_driver()
         driver_thread = threading.Thread(target=load_url, args=(driver, url, timeout))
+        driver_thread.daemon = True # Temp measure to let the program close
         driver_thread.start()
         driver_thread.join(timeout)
         

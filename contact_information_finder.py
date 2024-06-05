@@ -112,9 +112,9 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
                 except AccessDeniedException as e:
                     logging.debug(e)
                 except concurrent.futures.TimeoutError:
-                    logging.error(f"Timeout occurred processing {future_to_url[future]}")
+                    logging.warning(f"Timeout occurred processing {future_to_url[future]}")
                 except Exception as e:
-                    logging.error(f"Error retrieving result from {future_to_url[future]}: {str(e)}")
+                    logging.warning(f"Error retrieving result from {future_to_url[future]}: {str(e)}")
                 finally:
                     processed_count += 1
                     if processed_count % 50 == 0:
@@ -130,7 +130,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides",
+        "Texas saltwater fishing guides short",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
         "Saltwater fishing guides in Texas",
