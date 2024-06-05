@@ -7,18 +7,18 @@ from email_validator import validate_email, EmailNotValidError
 
 
 def proximity_based_extraction(soup, url):
-    logging.debug(f"Starting proximety based extraction for: {url}")
-    contacts = []
-    seen_data = set()
-
-    phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
-    email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-    # address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
-    website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
-    name_regex = r"(Mr\.|Mrs\.|Ms\.|Dr\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
-
-    potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
     try:
+        logging.debug(f"Starting proximety based extraction for: {url}")
+        contacts = []
+        seen_data = set()
+
+        phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
+        email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+        # address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
+        website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
+        name_regex = r"(Mr\.|Mrs\.|Ms\.|Dr\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+
+        potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
         for block in potential_blocks:
             text = ' '.join(block.stripped_strings)
 
@@ -52,11 +52,12 @@ def proximity_based_extraction(soup, url):
                 if contact_id not in seen_data:
                     seen_data.add(contact_id)
                     contacts.append(contact_details)
-        # logging.debug(f"Contacts found in {url}, {contacts}")
+        logging.debug(f"Contacts found in {url}, {contacts}")
+        if contacts:
+            contacts = contacts[:5]
         return contacts
     except Exception as e:
-        logging.warning(f"Error: {e}, processing a blocks in url: {url}")
-    return[]
+        raise e
 
 
 def clean_contact_information(all_contacts):
@@ -112,7 +113,6 @@ def clean_contact_information(all_contacts):
     except Exception as e:
         logging.critical(f"Error cleaning contacts: {e}")
         return all_contacts
-
     return contact_info
 
 

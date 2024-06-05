@@ -2,6 +2,7 @@ import concurrent.futures
 import logging
 import random
 import time
+import threading
 import os
 import urllib.robotparser
 from functools import lru_cache
@@ -12,6 +13,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 import validators
 
 
@@ -90,9 +92,9 @@ def set_up_driver():
         }
         options.add_experimental_option("prefs", prefs)
         driver = webdriver.Chrome(options=options)
-        # driver.set_page_load_timeout(80)
-        # driver.set_script_timeout(80)
-        # driver.implicitly_wait(80)
+        driver.set_page_load_timeout(80)
+        driver.set_script_timeout(80)
+        driver.implicitly_wait(80)
         return driver
     except Exception as e:
         if driver:
@@ -100,7 +102,7 @@ def set_up_driver():
         raise e
 
 
-def get_gigablast_search_results(search_queries, clicks=0, timeout=30):
+def get_gigablast_search_results(search_queries, clicks=4, timeout=30):
     all_urls = []
     workers = int(os.cpu_count())
     logging.info(f"Starting with queries: {search_queries}")
@@ -115,7 +117,7 @@ def get_gigablast_search_results(search_queries, clicks=0, timeout=30):
     return all_urls
 
 
-def get_gigablast_search_results_worker(query, clicks=0, timeout=30):
+def get_gigablast_search_results_worker(query, clicks, timeout):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
     
     if not is_allowed(url):
@@ -186,28 +188,45 @@ class AccessDeniedException(Exception):
 
 
 def fetch_html(url, timeout=60):
-    driver = set_up_driver()
-    try:
-        logging.debug(f"Fetching url: {url}")
-        if not validators.url(url):
-            raise InvalidURLException(f"Invalid url: {url}")
-        if not is_allowed(url):
-            raise AccessDeniedException(f"Access denied by robots.txt for URL: {url}")
-        
-        driver.get(url)
-        WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
+    exception_info = [None]
 
-        # Check if jQuery is available and handle AJAX with a maximum wait limit
-        jquery_loaded = driver.execute_script("return typeof jQuery != 'undefined'")
-        if jquery_loaded:
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                ajax_active = driver.execute_script('return jQuery.active')
-                if ajax_active == 0:
-                    break
-                time.sleep(0.5)
-            else:
-                raise ValueError(f"Timed out waiting for AJAX calls to complete at {url}")
+    def load_url(driver, url, timeout):
+        try:
+            logging.debug(f"Fetching url: {url}")
+            if not validators.url(url):
+                raise InvalidURLException(f"Invalid URL: {url}")
+            if not is_allowed(url):
+                raise AccessDeniedException(f"Access denied by robots.txt for URL: {url}")
+            
+            driver.get(url)
+            WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
+
+            jquery_loaded = driver.execute_script("return typeof jQuery != 'undefined'")
+            if jquery_loaded:
+                start_time = time.time()
+                while time.time() - start_time < timeout:
+                    ajax_active = driver.execute_script('return jQuery.active')
+                    if ajax_active == 0:
+                        break
+                    time.sleep(0.5)
+                else:
+                    raise ValueError(f"Timed out waiting for AJAX calls to complete at {url}")
+        except Exception as e:
+            exception_info[0] = e
+
+    try:
+        driver = set_up_driver()
+        driver_thread = threading.Thread(target=load_url, args=(driver, url, timeout))
+        driver_thread.start()
+        driver_thread.join(timeout)
+        
+        if driver_thread.is_alive():
+            logging.warning(f"Timeout of {timeout}s reached, terminating driver for url: {url}")
+            driver.quit()
+            raise TimeoutException(f"Page load timed out for {url}")
+
+        if exception_info[0]:
+            raise exception_info[0]
 
         return driver.page_source
     except Exception as e:
@@ -216,12 +235,12 @@ def fetch_html(url, timeout=60):
         driver.quit()
 
 
-def fetch_html_with_retries(url, timeout=60, retries=3):
-    attempt = 0
-    while attempt < retries:
-        html_content = fetch_html(url, timeout)
-        if html_content:
-            return html_content
-        attempt += 1
-        logging.info(f"Retrying ({attempt}/{retries}) for URL: {url}")
-    return ""
+# def fetch_html_with_retries(url, timeout=60, retries=3):
+#     attempt = 0
+#     while attempt < retries:
+#         html_content = fetch_html(url, timeout)
+#         if html_content:
+#             return html_content
+#         attempt += 1
+#         logging.info(f"Retrying ({attempt}/{retries}) for URL: {url}")
+#     return ""
