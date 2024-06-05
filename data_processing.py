@@ -16,7 +16,7 @@ def proximity_based_extraction(soup, url):
         email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
         # address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
         website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
-        name_regex = r"(Mr\.|Mrs\.|Ms\.|Dr\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+        name_regex = r"(Mr\.|Mrs\.|Ms\.|Cpt\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
 
         potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
         for block in potential_blocks:
@@ -25,22 +25,22 @@ def proximity_based_extraction(soup, url):
             phones = tuple(re.findall(phone_regex, text, re.IGNORECASE))
             emails = tuple(re.findall(email_regex, text, re.IGNORECASE))
             # addresses = tuple(re.findall(address_regex, text, re.IGNORECASE))
-            websites = tuple(re.findall(website_regex, text, re.IGNORECASE))
+            # websites = tuple(re.findall(website_regex, text, re.IGNORECASE))
             names = tuple(re.findall(name_regex, text))
 
             if phones or emails:
                 contact_details = {
                     'phone1': phones[0] if len(phones) > 0 else '',
-                    'phone2': phones[1] if len(phones) > 1 else '',
+                    # 'phone2': phones[1] if len(phones) > 1 else '',
                     'email1': emails[0] if len(emails) > 0 else '',
-                    'email2': emails[1] if len(emails) > 1 else '',
+                    # 'email2': emails[1] if len(emails) > 1 else '',
                     # 'address1': addresses[0] if len(addresses) > 0 else '',
                     # 'address2': addresses[1] if len(addresses) > 1 else '',
-                    'website1': websites[0] if len(websites) > 0 else '',
-                    'website2': websites[1] if len(websites) > 1 else '',
+                    # 'website1': websites[0] if len(websites) > 0 else '',
+                    # 'website2': websites[1] if len(websites) > 1 else '',
                 }
 
-                for i, name in enumerate(names[:2]):
+                for i, name in enumerate(names[:1]):
                     contact_details[f'salutation{i+1}'] = name[0]
                     contact_details[f'first_name{i+1}'] = name[1]
                     contact_details[f'last_name{i+1}'] = name[2] if len(name) > 2 else ''
@@ -53,8 +53,8 @@ def proximity_based_extraction(soup, url):
                     seen_data.add(contact_id)
                     contacts.append(contact_details)
         logging.debug(f"Contacts found in {url}, {contacts}")
-        if contacts:
-            contacts = contacts[:5]
+        # if contacts:
+        #     contacts = contacts[:5]
         return contacts
     except Exception as e:
         raise e
@@ -94,11 +94,11 @@ def clean_contact_information(all_contacts):
         
         # clean phone
         contact_info['phone1'] = contact_info['phone1'].apply(standardize_phone)
-        contact_info['phone2'] = contact_info['phone2'].apply(standardize_phone)
+        # contact_info['phone2'] = contact_info['phone2'].apply(standardize_phone)
         
         # clean email
         contact_info['email1'] = contact_info['email1'].apply(standardize_email)
-        contact_info['email2'] = contact_info['email2'].apply(standardize_email)
+        # contact_info['email2'] = contact_info['email2'].apply(standardize_email)
         
         # clean address
         # to-do

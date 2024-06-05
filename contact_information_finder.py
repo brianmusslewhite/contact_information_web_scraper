@@ -66,7 +66,7 @@ def process_url(url):
         raise e
 
 
-def find_contact_info(search_queries, use_test_urls = False, parallel = True):
+def find_contact_info(search_queries, clicks=0, use_test_urls=False):
     csv_filepath, urls_filepath = setup_paths_and_logging(search_queries)
     workers = int(os.cpu_count()*2.5)
     all_contacts = []
@@ -80,65 +80,49 @@ def find_contact_info(search_queries, use_test_urls = False, parallel = True):
                 all_urls = [line.strip() for line in file.readlines()]
         else:
             logging.debug("Saved url file does not exists, fetching results and saving")
-            all_urls = get_gigablast_search_results(search_queries)
+            all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
             with open(urls_filepath, 'w') as file:
                 for url in all_urls:
                     file.write(url + "\n")
                 logging.debug("Wrote urls to text file")
                 print(all_urls)
     else:
-        all_urls = get_gigablast_search_results(search_queries)
+        all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
     
     logging.info(f"Collected {len(all_urls)} urls. Starting to process.")
     processed_count = 0
 
-    if(parallel):
-        try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                future_to_url = {executor.submit(process_url, url): url for url in all_urls}
-                logging.debug(f"Executor created with {workers} workers and all URLs submitted")
-                for future in concurrent.futures.as_completed(future_to_url):
-                    try:
-                        url = future_to_url[future]
-                        logging.debug(f"Processing result for URL: {url}")
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in all_urls}
+            logging.debug(f"Executor created with {workers} workers and all URLs submitted")
+            for future in concurrent.futures.as_completed(future_to_url):
+                try:
+                    url = future_to_url[future]
+                    logging.debug(f"Processing result for URL: {url}")
 
-                        contacts = future.result()
-                        if contacts:
-                            all_contacts.extend(contacts)
-                            logging.debug(f"Added contacts from: {url}")
-                        else:
-                            logging.debug(f"No contacts found for: {url}")
-                    except InvalidURLException as e:
-                        logging.debug(e)
-                    except AccessDeniedException as e:
-                        logging.debug(e)
-                    except concurrent.futures.TimeoutError:
-                        logging.error(f"Timeout occurred processing {future_to_url[future]}")
-                    except Exception as e:
-                        logging.error(f"Error retrieving result from {future_to_url[future]}: {str(e)}")
-                    finally:
-                        processed_count += 1
-                        if processed_count % 50 == 0:
-                            logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
-                        else:
-                            logging.debug(f"Processed {processed_count}/{len(all_urls)} URLs")
-        except Exception as e:
-            logging.critical(f"Parrallel URL processing failure! {e}")
-
-    if not parallel:
-        for url in all_urls:
-            contacts = process_url(url)
-            if contacts:
-                all_contacts.extend(contacts)
-                logging.debug(f"Added contacts from: {url}")
-            else:
-                logging.debug(f"No contacts found for: {url}")
-            
-            processed_count += 1
-            if processed_count % 50 == 0:
-                logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
-            else:
-                logging.debug(f"Processed {processed_count}/{len(all_urls)} URLs")
+                    contacts = future.result()
+                    if contacts:
+                        all_contacts.extend(contacts)
+                        logging.debug(f"Added contacts from: {url}")
+                    else:
+                        logging.debug(f"No contacts found for: {url}")
+                except InvalidURLException as e:
+                    logging.debug(e)
+                except AccessDeniedException as e:
+                    logging.debug(e)
+                except concurrent.futures.TimeoutError:
+                    logging.error(f"Timeout occurred processing {future_to_url[future]}")
+                except Exception as e:
+                    logging.error(f"Error retrieving result from {future_to_url[future]}: {str(e)}")
+                finally:
+                    processed_count += 1
+                    if processed_count % 50 == 0:
+                        logging.info(f"Processed {processed_count}/{len(all_urls)} URLs")
+                    else:
+                        logging.debug(f"Processed {processed_count}/{len(all_urls)} URLs")
+    except Exception as e:
+        logging.critical(f"Parrallel URL processing failure! {e}")
 
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
@@ -173,4 +157,4 @@ if __name__ == "__main__":
         "Texas fishing groups contact information",
     ]
 
-find_contact_info(search_queries)
+find_contact_info(search_queries, clicks=5, use_test_urls=True)
