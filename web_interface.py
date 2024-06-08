@@ -225,7 +225,6 @@ def fetch_html(url, timeout=60):
         
         if driver_thread.is_alive():
             logging.warning(f"Timeout of {timeout}s reached, terminating driver: {url}")
-            driver.quit()
             raise TimeoutException(f"Page load timed out: {url}")
 
         if exception_info[0]:
