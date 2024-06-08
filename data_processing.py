@@ -29,7 +29,7 @@ def find_contact_us_links(soup, url, manager):
             href = tag.get('href')
             
             # Check if href is valid and not empty
-            if href and not href.startswith('#') and not href.startswith('mailto:'):
+            if href and not href.startswith('#') and not href.startswith('mailto:') and not href.startswith('emailto:') and not href.startswith('tel:')  and not href.startswith('javascript:'):
                 full_url = urllib.parse.urljoin(base_url, href)
                 manager.add_url(full_url)
 
@@ -44,7 +44,7 @@ def proximity_based_extraction(soup, url, manager):
 
         phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
         email_regex = r'(?i)[A-Z0-9._%+-]+@(?:[A-Z0-9-]+\.)+[A-Z]{2,}'
-        name_regex = r"(Mr\.|Mrs\.|Ms\.|Capt\.|Captain|Skipper|CPT|Guide|Cap'n|Master|Boat Captain|Charter Captain|Fishing Guide)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+        name_regex = r"(Mr\.|Mrs\.|Ms\.|Capt\.|Captain|Skipper|CPT|Cap'n)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
 
         potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
         for block in potential_blocks:
