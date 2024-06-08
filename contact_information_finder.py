@@ -14,14 +14,18 @@ from web_interface import get_gigablast_search_results, fetch_html, InvalidURLEx
 class URLProcessingManager:
     def __init__(self, initial_urls):
         self.url_queue = collections.deque(initial_urls)
+        self.all_urls = set(initial_urls)
         self.total_count = len(initial_urls)
         self.processed_count = 0
         self.count_lock = threading.Lock()
 
     def add_url(self, url):
         with self.count_lock:
-            self.url_queue.append(url)
-            self.total_count += 1
+            if url not in self.all_urls:
+                self.url_queue.append(url)
+                self.all_urls.add(url)
+                self.total_count += 1
+                logging.debug(f"Added URL: {url}")
 
     def get_next_url(self):
         with self.count_lock:
@@ -172,31 +176,31 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides",
-        "Best Texas saltwater fishing",
-        "Texas saltwater fishing guides contact information",
-        "Saltwater fishing guides in Texas",
-        "Texas saltwater fishing charters contact details",
-        "Fishing guide services Texas Gulf Coast",
-        "Texas coast fishing guides contact info",
-        "Galveston saltwater fishing guides contact",
-        "Corpus Christi saltwater fishing charters contact",
-        "Port Aransas fishing guides contact information",
-        "South Padre Island fishing guides contact details",
-        "Rockport Texas saltwater fishing guides contact info",
-        "Texas saltwater fishing guides Yelp",
-        "Texas fishing charters TripAdvisor",
-        "Saltwater fishing guides Texas Google Maps",
-        "Texas fishing guides directory",
-        "Best saltwater fishing guides in Texas",
-        "Texas Professional Fishing Guides Association",
-        "Texas fishing guides association members contact",
-        "Texas Parks and Wildlife fishing guides list",
-        "Texas fishing guides yellow pages",
-        "Texas saltwater fishing guides Facebook",
-        "Texas fishing guides Instagram",
-        "Fishing forums Texas saltwater guides",
-        "Texas fishing groups contact information",
+        "Texas saltwater fishing guides short",
+        # "Best Texas saltwater fishing",
+        # "Texas saltwater fishing guides contact information",
+        # "Saltwater fishing guides in Texas",
+        # "Texas saltwater fishing charters contact details",
+        # "Fishing guide services Texas Gulf Coast",
+        # "Texas coast fishing guides contact info",
+        # "Galveston saltwater fishing guides contact",
+        # "Corpus Christi saltwater fishing charters contact",
+        # "Port Aransas fishing guides contact information",
+        # "South Padre Island fishing guides contact details",
+        # "Rockport Texas saltwater fishing guides contact info",
+        # "Texas saltwater fishing guides Yelp",
+        # "Texas fishing charters TripAdvisor",
+        # "Saltwater fishing guides Texas Google Maps",
+        # "Texas fishing guides directory",
+        # "Best saltwater fishing guides in Texas",
+        # "Texas Professional Fishing Guides Association",
+        # "Texas fishing guides association members contact",
+        # "Texas Parks and Wildlife fishing guides list",
+        # "Texas fishing guides yellow pages",
+        # "Texas saltwater fishing guides Facebook",
+        # "Texas fishing guides Instagram",
+        # "Fishing forums Texas saltwater guides",
+        # "Texas fishing groups contact information",
     ]
 
-find_contact_info(search_queries, clicks=0, use_test_urls=False)
+find_contact_info(search_queries, clicks=0, use_test_urls=True)

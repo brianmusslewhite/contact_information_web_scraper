@@ -1,9 +1,37 @@
 import logging
 import re
+import urllib.parse
+from urllib.parse import urlparse
 
 import pandas as pd
 import phonenumbers
 from email_validator import validate_email, EmailNotValidError
+
+
+def get_base_url(full_url):
+    parsed_url = urlparse(full_url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    return base_url
+
+
+def find_contact_us_links(soup, url, manager):
+    base_url = get_base_url(url)
+    contact_pattern = re.compile(r'\b(contact|reach out|get in touch|contact us|contact me|reach us)\b', re.IGNORECASE)
+
+    a_tags = soup.find_all('a')
+    for tag in a_tags:
+        # Check both the text and the title attribute for matching the contact pattern
+        link_text = tag.text.strip() if tag.text else ''
+        title_attr = tag.get('title', '').strip()
+        
+        # Search in both the visible text and the title attribute of the tag
+        if contact_pattern.search(link_text) or contact_pattern.search(title_attr):
+            href = tag.get('href')
+            
+            # Check if href is valid and not empty
+            if href and not href.startswith('#') and not href.startswith('mailto:'):
+                full_url = urllib.parse.urljoin(base_url, href)
+                manager.add_url(full_url)
 
 
 def proximity_based_extraction(soup, url, manager):
@@ -12,11 +40,11 @@ def proximity_based_extraction(soup, url, manager):
         contacts = []
         seen_data = set()
 
+        find_contact_us_links(soup, url, manager)
+
         phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
         email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-        # address_regex = r'\b\d{1,5}\s(?:\b\w+\b\s?){0,4}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Plaza|Plz|Terrace|Terr|Circle|Cir|Trail|Trl|Parkway|Pkwy|Commons|Cmns|Square|Sq)\b'
-        website_regex = r'https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,}'
-        name_regex = r"(Mr\.|Mrs\.|Ms\.|Cpt\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+        name_regex = r"(Mr\.|Mrs\.|Ms\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
 
         potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
         for block in potential_blocks:
@@ -24,37 +52,25 @@ def proximity_based_extraction(soup, url, manager):
 
             phones = tuple(re.findall(phone_regex, text, re.IGNORECASE))
             emails = tuple(re.findall(email_regex, text, re.IGNORECASE))
-            # addresses = tuple(re.findall(address_regex, text, re.IGNORECASE))
-            # websites = tuple(re.findall(website_regex, text, re.IGNORECASE))
             names = tuple(re.findall(name_regex, text))
 
             if phones or emails:
                 contact_details = {
-                    'phone1': phones[0] if len(phones) > 0 else '',
-                    # 'phone2': phones[1] if len(phones) > 1 else '',
-                    'email1': emails[0] if len(emails) > 0 else '',
-                    # 'email2': emails[1] if len(emails) > 1 else '',
-                    # 'address1': addresses[0] if len(addresses) > 0 else '',
-                    # 'address2': addresses[1] if len(addresses) > 1 else '',
-                    # 'website1': websites[0] if len(websites) > 0 else '',
-                    # 'website2': websites[1] if len(websites) > 1 else '',
+                    'phone': phones[0] if phones else '',
+                    'email': emails[0] if emails else '',
+                    'salutation': names[0][0] if names else '',
+                    'first_name': names[0][1] if names else '',
+                    'last_name': names[0][2] if len(names) > 0 and len(names[0]) > 2 else '',
+                    'source': url
                 }
-
-                for i, name in enumerate(names[:1]):
-                    contact_details[f'salutation{i+1}'] = name[0]
-                    contact_details[f'first_name{i+1}'] = name[1]
-                    contact_details[f'last_name{i+1}'] = name[2] if len(name) > 2 else ''
-                
-                contact_details['source'] = url
 
                 # Remove duplicates
                 contact_id = frozenset(contact_details.items())
                 if contact_id not in seen_data:
                     seen_data.add(contact_id)
                     contacts.append(contact_details)
+
         logging.debug(f"Contacts found in {url}, {contacts}")
-        # if contacts:
-        #     contacts = contacts[:5]
         return contacts
     except Exception as e:
         raise e
@@ -93,15 +109,10 @@ def clean_contact_information(all_contacts):
         logging.info(f"Cleaning contact information. Length before cleaning: {len(contact_info)}")
         
         # clean phone
-        contact_info['phone1'] = contact_info['phone1'].apply(standardize_phone)
-        # contact_info['phone2'] = contact_info['phone2'].apply(standardize_phone)
+        contact_info['phone'] = contact_info['phone'].apply(standardize_phone)
         
         # clean email
-        contact_info['email1'] = contact_info['email1'].apply(standardize_email)
-        # contact_info['email2'] = contact_info['email2'].apply(standardize_email)
-        
-        # clean address
-        # to-do
+        contact_info['email'] = contact_info['email'].apply(standardize_email)
 
         # remove exact duplicates
         contact_info.drop_duplicates(inplace=True)
