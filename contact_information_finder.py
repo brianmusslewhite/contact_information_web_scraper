@@ -1,16 +1,16 @@
-import concurrent.futures
 import collections
+import concurrent.futures
 import logging
 import os
 import threading
 from datetime import datetime
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
-from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
-from data_processing import proximity_based_extraction, clean_contact_information, save_to_csv
-from web_interface import get_gigablast_search_results, fetch_html, InvalidURLException, AccessDeniedException
+from data_processing import clean_contact_information, proximity_based_extraction, save_to_csv
+from web_interface import AccessDeniedException, InvalidURLException, fetch_html, get_gigablast_search_results
 
 
 class URLProcessingManager:
