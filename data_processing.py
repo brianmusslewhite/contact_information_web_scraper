@@ -36,7 +36,7 @@ def find_contact_us_links(soup, url, manager):
 
 def proximity_based_extraction(soup, url, manager):
     try:
-        logging.debug(f"Starting proximety based extraction for: {url}")
+        logging.debug(f"Starting proximety based extraction: {url}")
         contacts = []
         seen_data = set()
 

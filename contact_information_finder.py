@@ -6,6 +6,8 @@ import threading
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+from url_normalize import url_normalize
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
 from data_processing import proximity_based_extraction, clean_contact_information, save_to_csv
 from web_interface import get_gigablast_search_results, fetch_html, InvalidURLException, AccessDeniedException
@@ -13,19 +15,48 @@ from web_interface import get_gigablast_search_results, fetch_html, InvalidURLEx
 
 class URLProcessingManager:
     def __init__(self, initial_urls):
-        self.url_queue = collections.deque(initial_urls)
-        self.all_urls = set(initial_urls)
-        self.total_count = len(initial_urls)
+        self.url_queue = collections.deque()
+        self.all_urls = set()
+        self.total_count = 0
         self.processed_count = 0
         self.count_lock = threading.Lock()
 
+        for url in initial_urls: self.add_url(url)
+
+    def clean_url(self, url):
+        try:
+            normalized_url = url_normalize(url)
+            parsed_url = urlparse(normalized_url)
+            query_params = parse_qs(parsed_url.query)
+            query_params.pop('sid', None)
+            new_query = urlencode(query_params, doseq=True)
+            cleaned_url = urlunparse((
+                parsed_url.scheme,
+                parsed_url.netloc,
+                parsed_url.path,
+                parsed_url.params,
+                new_query,
+                parsed_url.fragment
+            ))
+        except Exception as e:
+            raise e
+        return cleaned_url
+
     def add_url(self, url):
         with self.count_lock:
-            if url not in self.all_urls:
-                self.url_queue.append(url)
-                self.all_urls.add(url)
-                self.total_count += 1
-                logging.debug(f"Added URL: {url}")
+            try:
+                normal_url = self.clean_url(url)
+                if normal_url not in self.all_urls:
+                    self.url_queue.append(normal_url)
+                    self.all_urls.add(normal_url)
+                    self.total_count += 1
+                    logging.debug(f"Added: {url}")
+                    if url != normal_url:
+                        logging.debug(f"Cleaned URL\nBefore cleaning: {url}\nAfter  cleaning: {normal_url}")
+                else:
+                    logging.debug(f"Did not add, already added: {normal_url}")
+            except Exception as e:
+                logging.warning(f"Failed to add: {url}, because of {e}")
 
     def get_next_url(self):
         with self.count_lock:
@@ -80,7 +111,7 @@ def setup_paths_and_logging(search_queries):
 
     csv_filename = f"{current_formatted_datetime}_{search_queries[0].replace(' ', '-')}.csv"
     csv_filepath = os.path.join(results_path, csv_filename)
-    logging.info(f"CSV Filepath: {csv_filepath}")
+    logging.info(f"CSV filepath: {csv_filepath}")
 
     urls_filename = f"{search_queries[0].replace(' ', '-')}.txt"
     urls_filepath = os.path.join(results, urls_filename)
@@ -90,35 +121,35 @@ def setup_paths_and_logging(search_queries):
 
 def get_urls(search_queries, clicks, urls_filepath, use_test_urls):
     if use_test_urls:
-        logging.debug(f"use_test_urls = {use_test_urls}, Url filepath: {urls_filepath}")
+        logging.debug(f"use_test_urls = {use_test_urls}, URL filepath: {urls_filepath}")
         if os.path.exists(urls_filepath):
-            logging.debug("Saved url file exists, now loading")
+            logging.debug("Saved URL file exists, now loading")
             with open(urls_filepath, 'r') as file:
                 all_urls = [line.strip() for line in file.readlines()]
         else:
-            logging.debug("Saved url file does not exists, fetching results and saving")
+            logging.debug("Saved URL file does not exists, fetching results and saving")
             all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
             with open(urls_filepath, 'w') as file:
                 for url in all_urls:
                     file.write(url + "\n")
-                logging.debug("Wrote urls to text file")
+                logging.debug("Wrote URLs to text file")
                 print(all_urls)
     else:
         all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
-    logging.info(f"Collected {len(all_urls)} urls.")
+    logging.info(f"Collected {len(all_urls)} URLs")
     return all_urls
 
 
 def process_url(url, manager):
     try:
-        logging.debug(f"Starting to process URL: {url}")
+        logging.debug(f"Starting to process: {url}")
         html_content = fetch_html(url)
         if html_content:
             soup = BeautifulSoup(html_content, 'html.parser')
             contacts = proximity_based_extraction(soup, url, manager)
             return contacts
         else:
-            logging.debug(f"No html content for: {url}")
+            logging.debug(f"No html content: {url}")
             return []
     except Exception as e:
         raise e
@@ -136,7 +167,6 @@ def get_contact_info_from_urls(workers, manager):
                     if url:
                         future = executor.submit(process_url, url, manager)
                         futures_to_urls[future] = url
-                        logging.debug(f"Submitting {url} to processor")
 
                 done_futures = [f for f in futures_to_urls if f.done()]
                 for future in done_futures:
@@ -145,9 +175,9 @@ def get_contact_info_from_urls(workers, manager):
                         contacts = future.result()
                         if contacts:
                             all_contacts.extend(contacts)
-                            logging.debug(f"Added contacts from: {url}")
+                            logging.debug(f"Added contacts: {url}")
                         else:
-                            logging.debug(f"No contacts found for: {url}")
+                            logging.debug(f"No contacts found: {url}")
                     except InvalidURLException as e:
                         logging.debug(e)
                     except AccessDeniedException as e:
@@ -155,7 +185,7 @@ def get_contact_info_from_urls(workers, manager):
                     except concurrent.futures.TimeoutError:
                         logging.warning(f"Timeout occurred processing: {url}")
                     except Exception as e:
-                        logging.warning(f"Error retrieving result from: {url}: {str(e)}")
+                        logging.warning(f"Error retrieving result: {url}: {str(e)}")
                     finally:
                         manager.increment_processed()
     except Exception as e:
@@ -176,31 +206,31 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides short",
-        # "Best Texas saltwater fishing",
-        # "Texas saltwater fishing guides contact information",
-        # "Saltwater fishing guides in Texas",
-        # "Texas saltwater fishing charters contact details",
-        # "Fishing guide services Texas Gulf Coast",
-        # "Texas coast fishing guides contact info",
-        # "Galveston saltwater fishing guides contact",
-        # "Corpus Christi saltwater fishing charters contact",
-        # "Port Aransas fishing guides contact information",
-        # "South Padre Island fishing guides contact details",
-        # "Rockport Texas saltwater fishing guides contact info",
-        # "Texas saltwater fishing guides Yelp",
-        # "Texas fishing charters TripAdvisor",
-        # "Saltwater fishing guides Texas Google Maps",
-        # "Texas fishing guides directory",
-        # "Best saltwater fishing guides in Texas",
-        # "Texas Professional Fishing Guides Association",
-        # "Texas fishing guides association members contact",
-        # "Texas Parks and Wildlife fishing guides list",
-        # "Texas fishing guides yellow pages",
-        # "Texas saltwater fishing guides Facebook",
-        # "Texas fishing guides Instagram",
-        # "Fishing forums Texas saltwater guides",
-        # "Texas fishing groups contact information",
+        "Texas saltwater fishing guides long",
+        "Best Texas saltwater fishing",
+        "Texas saltwater fishing guides contact information",
+        "Saltwater fishing guides in Texas",
+        "Texas saltwater fishing charters contact details",
+        "Fishing guide services Texas Gulf Coast",
+        "Texas coast fishing guides contact info",
+        "Galveston saltwater fishing guides contact",
+        "Corpus Christi saltwater fishing charters contact",
+        "Port Aransas fishing guides contact information",
+        "South Padre Island fishing guides contact details",
+        "Rockport Texas saltwater fishing guides contact info",
+        "Texas saltwater fishing guides Yelp",
+        "Texas fishing charters TripAdvisor",
+        "Saltwater fishing guides Texas Google Maps",
+        "Texas fishing guides directory",
+        "Best saltwater fishing guides in Texas",
+        "Texas Professional Fishing Guides Association",
+        "Texas fishing guides association members contact",
+        "Texas Parks and Wildlife fishing guides list",
+        "Texas fishing guides yellow pages",
+        "Texas saltwater fishing guides Facebook",
+        "Texas fishing guides Instagram",
+        "Fishing forums Texas saltwater guides",
+        "Texas fishing groups contact information",
     ]
 
-find_contact_info(search_queries, clicks=0, use_test_urls=True)
+find_contact_info(search_queries, clicks=5, use_test_urls=True)

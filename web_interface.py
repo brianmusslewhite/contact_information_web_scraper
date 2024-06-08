@@ -125,9 +125,9 @@ def get_gigablast_search_results(search_queries, clicks=0, timeout=30):
     workers = int(os.cpu_count())
     logging.info(f"Starting with queries: {search_queries}")
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        logging.debug(f"Executor created with {workers} workers.")
+        logging.debug(f"Executor created with {workers} workers")
         future_to_query = {executor.submit(get_gigablast_search_results_worker, query, clicks, timeout): query for query in search_queries}
-        logging.debug("Submitted all search results to the executor.")
+        logging.debug("Submitted all search results to the executor")
         for future in concurrent.futures.as_completed(future_to_query):
             urls = future.result()
             if urls:
@@ -139,14 +139,14 @@ def get_gigablast_search_results_worker(query, clicks, timeout):
     url = f"https://gigablast.org/search/?q={query.replace(' ', '%20')}"
     
     if not is_allowed(url):
-        logging.debug(f"Access denied by robots.txt for URL: {url}")
+        logging.debug(f"Access denied by robots.txt for: {url}")
         return []
     
     driver = set_up_driver()
     try:
         time.sleep(random.uniform(1, 5))
 
-        logging.debug(f"Fetching search results from: {url}")
+        logging.debug(f"Fetching search results: {url}")
         driver.get(url)
         WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         
@@ -166,7 +166,7 @@ def get_gigablast_search_results_worker(query, clicks, timeout):
                     current_results = driver.find_elements(By.CLASS_NAME, 'searpList')
                     num_results_before = len(current_results)
                     
-                    logging.debug(f"Click {click+1}/{clicks} for: {url}")
+                    logging.debug(f"Click {click+1}/{clicks}: {url}")
                     more_results_button.click()
                     
                     WebDriverWait(driver, 10).until(
@@ -193,11 +193,11 @@ def fetch_html(url, timeout=60):
 
     def load_url(driver, url, timeout):
         try:
-            logging.debug(f"Fetching url: {url}")
+            logging.debug(f"Fetching: {url}")
             if not validators.url(url):
                 raise InvalidURLException(f"Invalid URL: {url}")
             if not is_allowed(url):
-                raise AccessDeniedException(f"Access denied by robots.txt for URL: {url}")
+                raise AccessDeniedException(f"Access denied by robots.txt: {url}")
             
             driver.get(url)
             WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
@@ -211,21 +211,21 @@ def fetch_html(url, timeout=60):
                         break
                     time.sleep(0.5)
                 else:
-                    raise ValueError(f"Timed out waiting for AJAX calls to complete at {url}")
+                    raise ValueError(f"Timed out waiting for AJAX calls: {url}")
         except Exception as e:
             exception_info[0] = e
 
     try:
         driver = set_up_driver()
         driver_thread = threading.Thread(target=load_url, args=(driver, url, timeout))
-        driver_thread.daemon = True # Temp measure to let the program close
+        driver_thread.daemon = True
         driver_thread.start()
         driver_thread.join(timeout)
         
         if driver_thread.is_alive():
-            logging.warning(f"Timeout of {timeout}s reached, terminating driver for url: {url}")
+            logging.warning(f"Timeout of {timeout}s reached, terminating driver: {url}")
             driver.quit()
-            raise TimeoutException(f"Page load timed out for {url}")
+            raise TimeoutException(f"Page load timed out: {url}")
 
         if exception_info[0]:
             raise exception_info[0]
@@ -234,4 +234,5 @@ def fetch_html(url, timeout=60):
     except Exception as e:
         raise e
     finally:
-        driver.quit()
+        if driver:
+            driver.quit()
