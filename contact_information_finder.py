@@ -206,7 +206,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides short",
+        "Texas saltwater fishing guides",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
         "Saltwater fishing guides in Texas",
@@ -218,12 +218,8 @@ if __name__ == "__main__":
         "Port Aransas fishing guides contact information",
         "South Padre Island fishing guides contact details",
         "Rockport Texas saltwater fishing guides contact info",
-        "Texas saltwater fishing guides Yelp",
-        "Texas fishing charters TripAdvisor",
-        "Saltwater fishing guides Texas Google Maps",
         "Texas fishing guides directory",
         "Best saltwater fishing guides in Texas",
-        "Texas Professional Fishing Guides Association",
         "Texas fishing guides association members contact",
         "Texas Parks and Wildlife fishing guides list",
         "Texas fishing guides yellow pages",
@@ -231,6 +227,20 @@ if __name__ == "__main__":
         "Texas fishing guides Instagram",
         "Fishing forums Texas saltwater guides",
         "Texas fishing groups contact information",
+        "Hire a fishing guide for Gulf of Mexico Texas",
+        "Top saltwater fishing captains in Texas",
+        "Texas fishing tours saltwater",
+        "Guided saltwater fishing trips Texas",
+        "Best Texas coast fishing guide",
+        "Licensed saltwater fishing guides Texas",
+        "Book a saltwater fishing charter in Texas",
+        "Texas saltwater fishing guide reviews",
+        "Corpus Christi fishing guides",
+        "Galveston fishing guides",
+        "Port Aransas fishing charters",
+        "Saltwater fly fishing guides Texas",
+        "Deep sea fishing guide near Texas",
+        "Find a fishing captain in Texas"
     ]
 
-find_contact_info(search_queries, clicks=5, use_test_urls=True)
+find_contact_info(search_queries, clicks=10, use_test_urls=True)
