@@ -36,6 +36,7 @@ def is_allowed(url, user_agent='Mozilla/5.0'):
 
 def set_up_driver():
     try:
+        driver = None
         user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
             "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
@@ -189,6 +190,7 @@ def get_gigablast_search_results_worker(query, clicks, timeout):
 
 def fetch_html(url, timeout=60):
     exception_info = [None]
+    driver = None
 
     def load_url(driver, url, timeout):
         try:
