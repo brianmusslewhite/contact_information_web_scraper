@@ -102,7 +102,7 @@ def set_up_driver():
         raise e
 
 
-def get_gigablast_search_results(search_queries, clicks=4, timeout=30):
+def get_gigablast_search_results(search_queries, clicks=0, timeout=30):
     all_urls = []
     workers = int(os.cpu_count())
     logging.info(f"Starting with queries: {search_queries}")

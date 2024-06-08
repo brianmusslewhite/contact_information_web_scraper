@@ -2,9 +2,7 @@ import concurrent.futures
 import collections
 import logging
 import os
-import queue
 import threading
-import time
 from datetime import datetime
 
 from bs4 import BeautifulSoup
@@ -12,7 +10,6 @@ from bs4 import BeautifulSoup
 from data_processing import proximity_based_extraction, clean_contact_information, save_to_csv
 from web_interface import get_gigablast_search_results, fetch_html, InvalidURLException, AccessDeniedException
 
-COUNTER = 0
 
 def setup_paths_and_logging(search_queries):
     current_datetime = datetime.now()
@@ -102,12 +99,7 @@ class URLProcessingManager:
             logging.debug(f"Processed {self.processed_count}/{self.total_count} URLs")
 
 
-def find_contact_info(search_queries, clicks=0, use_test_urls=False):
-    csv_filepath, urls_filepath = setup_paths_and_logging(search_queries)
-    workers = int(os.cpu_count()*2.5)
-    all_contacts = []
-    all_urls = []
-
+def get_urls(search_queries, clicks, urls_filepath, use_test_urls):
     if use_test_urls:
         logging.debug(f"use_test_urls = {use_test_urls}, Url filepath: {urls_filepath}")
         if os.path.exists(urls_filepath):
@@ -124,10 +116,12 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
                 print(all_urls)
     else:
         all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
-    
-    logging.info(f"Collected {len(all_urls)} urls. Starting to process.")
-    manager = URLProcessingManager(all_urls)
+    logging.info(f"Collected {len(all_urls)} urls.")
+    return all_urls
 
+
+def get_contact_info_from_urls(workers, manager):
+    all_contacts = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             logging.debug(f"Executor created with {workers} workers")
@@ -161,7 +155,15 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
                     finally:
                         manager.increment_processed()
     except Exception as e:
-        logging.critical(f"Parallel URL processing failure! {e}")
+        logging.critical(f"Function get_contact_info_from_urls failure! {e}")
+    return all_contacts
+
+def find_contact_info(search_queries, clicks=0, use_test_urls=False):
+    csv_filepath, urls_filepath = setup_paths_and_logging(search_queries)
+    all_urls = get_urls(search_queries, clicks, urls_filepath, use_test_urls)
+    
+    manager = URLProcessingManager(all_urls)
+    all_contacts = get_contact_info_from_urls(int(os.cpu_count()*2.5), manager)
 
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
@@ -169,7 +171,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides short",
+        "Texas saltwater fishing guides",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
         "Saltwater fishing guides in Texas",
@@ -196,4 +198,4 @@ if __name__ == "__main__":
         "Texas fishing groups contact information",
     ]
 
-find_contact_info(search_queries, clicks=5, use_test_urls=True)
+find_contact_info(search_queries, clicks=0, use_test_urls=False)
