@@ -198,7 +198,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
     all_urls = get_urls(search_queries, clicks, urls_filepath, use_test_urls)
     
     manager = URLProcessingManager(all_urls)
-    all_contacts = get_contact_info_from_urls(int(os.cpu_count()*2.5), manager)
+    all_contacts = get_contact_info_from_urls(int(os.cpu_count()*3), manager)
 
     cleaned_contacts = clean_contact_information(all_contacts)
     save_to_csv(cleaned_contacts, csv_filepath)
@@ -206,7 +206,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides long",
+        "Texas saltwater fishing guides short",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
         "Saltwater fishing guides in Texas",

@@ -43,8 +43,8 @@ def proximity_based_extraction(soup, url, manager):
         find_contact_us_links(soup, url, manager)
 
         phone_regex = r'\(?\b[0-9]{3}\)?[-. ]?[0-9]{3}[-. ]?[0-9]{4}\b'
-        email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-        name_regex = r"(Mr\.|Mrs\.|Ms\.|Capt\.|Captain)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
+        email_regex = r'(?i)[A-Z0-9._%+-]+@(?:[A-Z0-9-]+\.)+[A-Z]{2,}'
+        name_regex = r"(Mr\.|Mrs\.|Ms\.|Capt\.|Captain|Skipper|CPT|Guide|Cap'n|Master|Boat Captain|Charter Captain|Fishing Guide)\s+([A-Z][\w'-]+)\s+([A-Z][\w'-]+)?"
 
         potential_blocks = soup.find_all(['div', 'p', 'footer', 'section', 'td', 'span', 'article', 'header', 'aside', 'li'])
         for block in potential_blocks:
@@ -54,7 +54,7 @@ def proximity_based_extraction(soup, url, manager):
             emails = tuple(re.findall(email_regex, text, re.IGNORECASE))
             names = tuple(re.findall(name_regex, text))
 
-            if phones or emails:
+            if emails and names:
                 contact_details = {
                     'phone': phones[0] if phones else '',
                     'email': emails[0] if emails else '',
@@ -114,11 +114,22 @@ def clean_contact_information(all_contacts):
         # clean email
         contact_info['email'] = contact_info['email'].apply(standardize_email)
 
+        logging.debug(f"Removing 'webmaster' emails. Length before filtering: {len(contact_info)}")
+        contact_info = contact_info[~contact_info['email'].str.contains('webmaster', case=False, na=True)]
+        logging.debug(f"Removed 'webmaster' emails. Length after filtering: {len(contact_info)}")
+
         # remove exact duplicates
+        logging.debug(f"Removing duplicates. Length before filtering: {len(contact_info)}")
         contact_info.drop_duplicates(inplace=True)
+        logging.debug(f"Removed duplicates. Length after filtering: {len(contact_info)}")
 
         # remove partial duplicates
-        # to-do
+        logging.debug(f"Removing partial duplicates. Length before filtering: {len(contact_info)}")
+        contact_info['completeness'] = contact_info.apply(lambda row: row.count(), axis=1)
+        contact_info.sort_values(by='completeness', ascending=False, inplace=True)
+        contact_info.drop_duplicates(subset='email', keep='first', inplace=True)
+        contact_info.drop(columns=['completeness'], inplace=True)
+        logging.debug(f"Removing partial duplicates. Length after filtering: {len(contact_info)}")
 
         logging.info(f"Cleaning complete. Length after cleaning: {len(contact_info)}")
     except Exception as e:
