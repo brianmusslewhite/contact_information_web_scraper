@@ -11,6 +11,37 @@ from data_processing import proximity_based_extraction, clean_contact_informatio
 from web_interface import get_gigablast_search_results, fetch_html, InvalidURLException, AccessDeniedException
 
 
+class URLProcessingManager:
+    def __init__(self, initial_urls):
+        self.url_queue = collections.deque(initial_urls)
+        self.total_count = len(initial_urls)
+        self.processed_count = 0
+        self.count_lock = threading.Lock()
+
+    def add_url(self, url):
+        with self.count_lock:
+            self.url_queue.append(url)
+            self.total_count += 1
+
+    def get_next_url(self):
+        with self.count_lock:
+            if self.url_queue:
+                return self.url_queue.popleft()
+            return None
+
+    def increment_processed(self):
+        with self.count_lock:
+            self.processed_count += 1
+            self.log_progress()
+            return self.processed_count
+
+    def log_progress(self):
+        if self.processed_count % 50 == 0:
+            logging.info(f"Processed {self.processed_count}/{self.total_count} URLs")
+        else:
+            logging.debug(f"Processed {self.processed_count}/{self.total_count} URLs")
+
+
 def setup_paths_and_logging(search_queries):
     current_datetime = datetime.now()
     current_formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
@@ -53,52 +84,6 @@ def setup_paths_and_logging(search_queries):
     return csv_filepath, urls_filepath
 
 
-def process_url(url, manager):
-    try:
-        logging.debug(f"Starting to process URL: {url}")
-        html_content = fetch_html(url)
-        if html_content:
-            soup = BeautifulSoup(html_content, 'html.parser')
-            contacts = proximity_based_extraction(soup, url, manager)
-            return contacts
-        else:
-            logging.debug(f"No html content for: {url}")
-            return []
-    except Exception as e:
-        raise e
-
-
-class URLProcessingManager:
-    def __init__(self, initial_urls):
-        self.url_queue = collections.deque(initial_urls)
-        self.total_count = len(initial_urls)
-        self.processed_count = 0
-        self.count_lock = threading.Lock()
-
-    def add_url(self, url):
-        with self.count_lock:
-            self.url_queue.append(url)
-            self.total_count += 1
-
-    def get_next_url(self):
-        with self.count_lock:
-            if self.url_queue:
-                return self.url_queue.popleft()
-            return None
-
-    def increment_processed(self):
-        with self.count_lock:
-            self.processed_count += 1
-            self.log_progress()
-            return self.processed_count
-
-    def log_progress(self):
-        if self.processed_count % 50 == 0:
-            logging.info(f"Processed {self.processed_count}/{self.total_count} URLs")
-        else:
-            logging.debug(f"Processed {self.processed_count}/{self.total_count} URLs")
-
-
 def get_urls(search_queries, clicks, urls_filepath, use_test_urls):
     if use_test_urls:
         logging.debug(f"use_test_urls = {use_test_urls}, Url filepath: {urls_filepath}")
@@ -118,6 +103,21 @@ def get_urls(search_queries, clicks, urls_filepath, use_test_urls):
         all_urls = get_gigablast_search_results(search_queries, clicks=clicks)
     logging.info(f"Collected {len(all_urls)} urls.")
     return all_urls
+
+
+def process_url(url, manager):
+    try:
+        logging.debug(f"Starting to process URL: {url}")
+        html_content = fetch_html(url)
+        if html_content:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            contacts = proximity_based_extraction(soup, url, manager)
+            return contacts
+        else:
+            logging.debug(f"No html content for: {url}")
+            return []
+    except Exception as e:
+        raise e
 
 
 def get_contact_info_from_urls(workers, manager):
@@ -157,6 +157,7 @@ def get_contact_info_from_urls(workers, manager):
     except Exception as e:
         logging.critical(f"Function get_contact_info_from_urls failure! {e}")
     return all_contacts
+
 
 def find_contact_info(search_queries, clicks=0, use_test_urls=False):
     csv_filepath, urls_filepath = setup_paths_and_logging(search_queries)

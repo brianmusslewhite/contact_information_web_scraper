@@ -17,6 +17,24 @@ from selenium.common.exceptions import TimeoutException
 import validators
 
 
+class InvalidURLException(Exception):
+    """Exception raised for invalid URLs."""
+    pass
+
+
+class AccessDeniedException(Exception):
+    """Exception raised for access denied by robots.txt."""
+    pass
+
+
+@lru_cache()
+def is_allowed(url, user_agent='Mozilla/5.0'):
+    parser = urllib.robotparser.RobotFileParser()
+    parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
+    parser.read()
+    return parser.can_fetch(user_agent, url)
+
+
 def set_up_driver():
     try:
         user_agents = [
@@ -168,23 +186,6 @@ def get_gigablast_search_results_worker(query, clicks, timeout):
     urls = [link['data-target'] for link in links if link['data-target'].startswith('http') and "anon.toorgle.com" not in link['data-target']]
 
     return list(set(urls))
-
-
-@lru_cache()
-def is_allowed(url, user_agent='Mozilla/5.0'):
-    parser = urllib.robotparser.RobotFileParser()
-    parser.set_url(urllib.parse.urljoin(url, 'robots.txt'))
-    parser.read()
-    return parser.can_fetch(user_agent, url)
-
-
-class InvalidURLException(Exception):
-    """Exception raised for invalid URLs."""
-    pass
-
-class AccessDeniedException(Exception):
-    """Exception raised for access denied by robots.txt."""
-    pass
 
 
 def fetch_html(url, timeout=60):
