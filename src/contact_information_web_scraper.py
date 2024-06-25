@@ -9,8 +9,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
 
-from data_processing import clean_contact_information, proximity_based_extraction, save_to_csv
-from web_interface import AccessDeniedException, InvalidURLException, fetch_html, get_gigablast_search_results
+from src.data_processing import clean_contact_information, proximity_based_extraction, save_to_csv
+from src.web_interface import AccessDeniedException, InvalidURLException, fetch_html, get_gigablast_search_results
 
 
 class URLProcessingManager:
@@ -206,7 +206,7 @@ def find_contact_info(search_queries, clicks=0, use_test_urls=False):
 
 if __name__ == "__main__":
     search_queries = [
-        "Texas saltwater fishing guides",
+        "Texas saltwater fishing guides short",
         "Best Texas saltwater fishing",
         "Texas saltwater fishing guides contact information",
         "Saltwater fishing guides in Texas",
